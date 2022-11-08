@@ -10,6 +10,8 @@
 
         window.addEventListener("resize", OnResize);
 
+        OnResize();
+
         function OnResize()
         {
             gameInstance.SendMessage("ScreenMgr", "SetWidth", window.innerWidth);
@@ -20,6 +22,6 @@
     </script>
   </head>
   <body style="margin: 0; overflow:hidden;">
-    <div id="gameContainer" style="width: 100%; height: 100%; margin: auto"></div>
+    <div id="gameContainer" style="width: 100%; height: 100%; margin: 0"></div>
   </body>
 </html>
