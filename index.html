@@ -16,8 +16,8 @@
 
         function OnResize()
         {
-            gameInstance.SendMessage("ScreenMgr", "SetWidth", window.innerWidth);
-            gameInstance.SendMessage("ScreenMgr", "SetHeight", window.innerHeight);
+            gameInstance.SendMessage("ScreenMgr", "SetWidth", window.clientWidth);
+            gameInstance.SendMessage("ScreenMgr", "SetHeight", window.clientHeight);
             gameInstance.SendMessage("ScreenMgr", "OnResize");
         }
 
