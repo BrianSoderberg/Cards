@@ -1,0 +1,2400 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Card Table</title>
+<!-- Install as an app (Add to Home Screen) so it opens full screen on phones and tablets -->
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" href="icon-192.png">
+<meta name="theme-color" content="#15171c">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Card Table">
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<style>
+  :root{
+    --bg:#15171c; --panel:#23262e; --felt:#1f5d3a; --felt-edge:#2b7a4c;
+    --ink:#f3f1e8; --muted:#a3a8b4; --accent:#f2c14e;
+    --red:#c62828; --card:#fdfcf7; --back1:#7a1f2b; --back2:#9b2c3a;
+  }
+  [hidden]{display:none !important}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--ink);min-height:100vh;-webkit-tap-highlight-color:transparent}
+  body.playing{padding-bottom:150px}
+  button{font:inherit;border:0;border-radius:8px;padding:7px 12px;background:var(--accent);color:#222;font-weight:600;cursor:pointer}
+  button.secondary{background:#ffffff1f;color:var(--ink)}
+  button.small{padding:3px 8px;font-size:12px}
+  button:disabled{opacity:.4;cursor:default}
+  input,select{font:inherit;padding:6px 8px;border-radius:8px;border:1px solid #ffffff33;background:#00000040;color:var(--ink)}
+  select option{color:#222}
+  input[type=number]{width:64px}
+
+  /* Lobby */
+  #lobby{max-width:440px;margin:8vh auto;padding:24px;background:var(--panel);border-radius:16px;display:flex;flex-direction:column;gap:12px}
+  #lobby h1{margin:0 0 4px;font-size:24px}
+  #lobby .row{display:flex;gap:8px}
+  #lobby .row input{flex:1;min-width:0}
+  #lobby .or{color:var(--muted);font-size:13px;margin-top:6px}
+  #lobbyMsg{min-height:20px;color:var(--accent);font-size:14px}
+  #tablesList{display:flex;flex-direction:column;gap:6px}
+  .tables-head{display:flex;align-items:center;justify-content:space-between}
+  .tablerow{display:flex;align-items:center;gap:10px;background:#ffffff14;border-radius:10px;padding:8px 8px 8px 12px}
+  .tablerow.invited{background:#f2c14e26;box-shadow:inset 0 0 0 1px #f2c14e88}
+  .tablerow .tinfo{flex:1;min-width:0}
+  .tablerow .tname{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .tablerow small{color:var(--muted)}
+  .tablerow b{color:var(--accent);letter-spacing:.1em}
+  #tablesList .none{color:var(--muted);font-size:14px}
+  #codeBox summary{cursor:pointer;color:var(--muted);font-size:13px;margin-bottom:6px}
+
+  /* Game layout */
+  #game{max-width:1100px;margin:0 auto;padding:calc(10px + env(safe-area-inset-top)) calc(12px + env(safe-area-inset-right)) 12px calc(12px + env(safe-area-inset-left));display:flex;flex-direction:column;gap:10px}
+  #fsBtn{padding:3px 8px;font-size:15px;line-height:1}
+  #installTip{font-size:13px;color:var(--muted);background:#ffffff10;border-radius:8px;padding:8px 10px}
+  .hrow{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+  .title{font-size:19px;font-weight:700}
+  .room{font-size:13px;color:var(--muted);cursor:pointer;padding:3px 8px;border-radius:99px;background:#ffffff12}
+  .room b{letter-spacing:.12em;color:var(--accent)}
+  #status{color:var(--accent);font-size:13px}
+  .trump{margin-left:auto;background:var(--card);color:#222;border-radius:10px;padding:4px 10px;font-size:13px;display:flex;align-items:center;gap:6px}
+  .trump span{font-size:22px;line-height:1}
+  .trump.red span{color:var(--red)}
+
+  /* Seats strip */
+  #seatRow{gap:6px}
+  .seats-label{font-size:12px;color:var(--muted)}
+  #seats{display:flex;flex-wrap:wrap;gap:6px}
+  .chip{display:flex;align-items:center;gap:5px;padding:4px 10px 4px 4px;border-radius:99px;background:color-mix(in srgb,var(--mat) 60%,#15171c);border:2px solid var(--mat);font-size:13px;font-weight:600;cursor:pointer;touch-action:none;user-select:none}
+  .chip i{font-style:normal;font-size:11px;width:18px;height:18px;border-radius:50%;display:grid;place-items:center;background:#0006}
+  .chip .d{font-size:10px;background:var(--accent);color:#222;border-radius:4px;padding:0 4px}
+  @keyframes turnPulse{
+    0%,100%{box-shadow:0 0 0 2px var(--accent)}
+    50%{box-shadow:0 0 0 5px #f2c14e55,0 0 16px 2px #f2c14ecc}
+  }
+  /* The player whose turn it is: a throbbing gold glow around their mat */
+  @keyframes matTurn{
+    0%,100%{box-shadow:0 0 0 3px var(--accent)}
+    50%{box-shadow:0 0 0 5px #f2c14e66,0 0 22px 4px #f2c14ecc}
+  }
+  @keyframes chipTurn{
+    0%,100%{background-color:color-mix(in srgb,var(--mat) 60%,#15171c);box-shadow:0 0 0 2px var(--accent)}
+    50%{background-color:#000;box-shadow:0 0 0 4px #f2c14e66,0 0 14px 2px #f2c14ecc}
+  }
+  .chip.turn{border-color:var(--accent);animation:chipTurn 1.6s ease-in-out infinite}
+  .yourturn{background:var(--accent);color:#222;font-size:11px;font-weight:800;padding:2px 8px;border-radius:99px;letter-spacing:.04em;animation:pulseText 1.6s ease-in-out infinite}
+  @keyframes pulseText{50%{opacity:.35}}
+  .chip.turn::after{content:"◀ turn";font-size:10px;color:var(--accent)}
+  .chip.off{opacity:.45}
+  .chip.dragging{opacity:.3}
+  .chip.target{outline:2px dashed var(--accent);outline-offset:2px}
+  .chip.ghost{position:fixed;pointer-events:none;z-index:50;transform:translate(-50%,-50%);box-shadow:0 6px 16px #000a}
+  #hostCtl{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:4px;margin-left:auto}
+  #hostCtl select{padding:3px 6px;font-size:12px}
+
+  /* Team plaques */
+  .plaque{position:relative;display:flex;align-items:center;gap:8px;background:var(--panel);border:1px solid #ffffff22;border-radius:10px;padding:5px 22px 5px 10px}
+  .plaque .pname{font-weight:600;cursor:pointer}
+  .plaque .pscore{min-width:34px;text-align:center;background:var(--card);color:#222;border-radius:6px;padding:2px 6px;font-weight:700;cursor:pointer}
+  .plaque .px{position:absolute;top:-7px;right:-7px;width:18px;height:18px;padding:0;border-radius:50%;font-size:12px;line-height:18px;background:#5a5f6e;color:#fff}
+  .padd{width:30px;height:30px;padding:0;border-radius:50%;font-size:18px;line-height:30px}
+
+  /* Player mats */
+  #opponents{display:flex;flex-wrap:wrap;gap:8px}
+  .mat{background:color-mix(in srgb,var(--mat) 45%,#15171c);border:2px solid var(--mat);border-radius:12px;padding:6px 10px 8px}
+  .mat.turn{border-color:var(--accent);animation:matTurn 1.6s ease-in-out infinite}
+  /* The turn glow keeps pulsing even with the device's Reduce Motion setting: it's how players notice their turn.
+     It only slows down a little there. */
+  @media (prefers-reduced-motion:reduce){.chip.turn,.mat.turn,.yourturn{animation-duration:2.4s}}
+  .teambadge{font-size:10px;padding:1px 6px;border-radius:99px;background:#ffffff26;font-weight:700;max-width:90px;overflow:hidden;text-overflow:ellipsis}
+  /* Lay-down area (melds): groups of overlapping face-up cards */
+  .melds{flex:1;min-width:110px;min-height:46px;border:1.5px dashed #ffffff30;border-radius:8px;padding:5px;display:flex;flex-wrap:wrap;gap:10px;align-items:flex-start}
+  #me .melds{min-height:86px;min-width:160px}
+  .melds .ph{font-size:11px;color:#ffffff55;margin:auto;pointer-events:none}
+  .group{display:flex}
+  .group .card+.card{margin-left:-34px}
+  .group .card.sm+.card.sm{margin-left:-20px}
+  .mat.offline{opacity:.5}
+  .mat-head{display:flex;align-items:center;gap:6px;font-weight:600;font-size:14px;height:24px;white-space:nowrap}
+  .addspot{width:22px;height:22px;border-radius:6px;display:grid;place-items:center;color:var(--accent);font-size:16px;line-height:1;background:#0004;outline-offset:1px !important}
+  .grow{flex:1}
+  .badge{font-size:10px;padding:1px 6px;border-radius:99px;background:#ffffff22;font-weight:700}
+  .badge.dealer{background:var(--accent);color:#222}
+  .score{min-width:30px;text-align:center;background:var(--card);color:#222;border-radius:6px;padding:1px 6px;font-size:13px;font-weight:700;cursor:pointer}
+  .trickpile{display:flex;align-items:center;gap:4px;font-size:12px;color:var(--ink);cursor:pointer;padding:1px 6px 1px 2px;border-radius:6px;background:#0003}
+  .trickpile .card{pointer-events:none}
+  .mat-body{display:flex;flex-wrap:wrap;align-items:flex-start;gap:10px;margin-top:4px}
+  .fanzone{min-height:42px;min-width:40px;border-radius:8px}
+  #me .fanzone{min-height:76px;min-width:60px}
+  /* Your hand overlaps like a held fan: each card shows its rank and corner suit */
+  #myHand.cards{gap:0;row-gap:6px;padding-left:28px}
+  #myHand .card{margin-left:-28px}
+
+  /* Center (the green table) */
+  #center{position:relative;display:flex;flex-wrap:wrap;align-items:center;gap:12px;padding:22px 12px 12px;background:var(--felt);border:2px solid var(--felt-edge);border-radius:16px}
+  #center::before{content:"Table";position:absolute;top:4px;left:12px;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#cfe3d6;opacity:.8}
+  .piles{display:flex;gap:12px;padding:8px 10px 6px;background:#0d2a1b;border:2px solid #ffffff26;border-radius:12px;box-shadow:inset 0 1px 6px #0007}
+  /* Hands turned face up (Show hand) are laid out on the table */
+  #shownArea{flex-basis:100%;display:flex;flex-wrap:wrap;gap:10px}
+  .showgroup{background:color-mix(in srgb,var(--mat) 35%,#0d2a1b);border:2px solid var(--mat);border-radius:10px;padding:4px 8px 8px}
+  .showgroup .who{font-size:12px;font-weight:700;margin-bottom:4px}
+  .showgroup .cards{gap:0;row-gap:4px;padding-left:26px}
+  .showgroup .card{margin-left:-26px}
+  #doneBtn{align-self:flex-end;flex:none}
+  .pile{display:flex;flex-direction:column;align-items:center;gap:4px}
+  .pile-label{font-size:11px;color:#cfe3d6}
+  #playArea{flex:1;min-width:180px;min-height:96px;display:flex;flex-wrap:wrap;align-items:center;gap:6px;background:#00000022;border-radius:12px;padding:6px 8px}
+  .cstack{display:flex;flex-wrap:wrap;row-gap:6px;padding-left:28px}
+  .cstack .card{margin-left:-28px}
+  .card.byc{box-shadow:0 1px 3px #0006,inset 0 -5px 0 var(--by)}
+  .flyer{position:fixed !important;z-index:45;pointer-events:none;margin:0 !important;transform-origin:0 0;transition:none !important;box-shadow:0 8px 20px #0009}
+  #playHint{color:#cfe3d6;font-size:13px;opacity:.7}
+
+  /* Cards */
+  .cards{display:flex;flex-wrap:wrap;gap:6px}
+  .grid{display:grid;gap:6px;width:max-content}
+  .fan{display:flex;flex-wrap:wrap;row-gap:4px}
+  .fan .card+.card{margin-left:-23px}
+  .card{width:52px;height:74px;border-radius:7px;background:var(--card);color:#222;position:relative;box-shadow:0 1px 3px #0006;flex:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;transition:transform .12s}
+  .card .r{position:absolute;top:4px;left:5px;font-weight:700;font-size:15px;line-height:1}
+  .card .s{position:absolute;top:28px;left:6px;right:0;text-align:center;font-size:28px;line-height:1}
+  .card .cs{position:absolute;top:20px;left:5px;font-size:12px;line-height:1}
+  .card.red{color:var(--red)}
+  .card.back{background:repeating-linear-gradient(45deg,var(--back1) 0 6px,var(--back2) 6px 12px);border:3px solid var(--card)}
+  .card.sm{width:35px;height:48px;border-radius:5px}
+  .card.sm.back{border-width:2px}
+  .card.sm .r{font-size:11px;top:3px;left:3px}
+  .card.sm .s{font-size:15px;top:27px;left:9px}
+  .card.sm .cs{font-size:10px;top:14px;left:3px}
+  .card.xs{width:16px;height:22px;border-radius:3px}
+  .card.xs.back{border-width:1.5px}
+  .slot{width:52px;height:74px;border:2px dashed #ffffff44;border-radius:7px;display:grid;place-items:center;font-size:11px;color:var(--muted);flex:none}
+  .slot.sm{width:35px;height:48px}
+  .slot.add{font-size:20px;color:var(--accent);border-color:var(--accent)}
+
+  /* Interaction states */
+  [data-zone],[data-act]{cursor:pointer}
+  .card.selected{transform:translateY(-10px);box-shadow:0 0 0 3px var(--accent),0 6px 12px #0008;z-index:2}
+  .card.sm.selected{transform:translateY(-6px)}
+  .drop{outline:2px dashed var(--accent);outline-offset:3px}
+  .card.peek{box-shadow:0 0 0 2px var(--accent),0 1px 3px #0006}
+  .card.peek::before{content:"peek";position:absolute;bottom:3px;left:0;right:0;text-align:center;font-size:9px;font-weight:700;color:#8a6d1a;letter-spacing:.05em}
+  .card.sm.peek::before{font-size:7px;bottom:1px}
+  /* Someone else is peeking at this card: lift it above its neighbours so the eye is never covered */
+  .card.peeking{z-index:4;box-shadow:0 0 0 2px #8fc3ff,0 1px 3px #0006}
+  .card.peeking::after{content:"";position:absolute;top:-9px;left:50%;transform:translateX(-50%);width:22px;height:14px;border-radius:99px;background:#1d2027 no-repeat center/16px 10px url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 10'%3E%3Cpath d='M1 5 Q8 -2 15 5 Q8 12 1 5Z' fill='none' stroke='%238fc3ff' stroke-width='1.5'/%3E%3Ccircle cx='8' cy='5' r='2.2' fill='%238fc3ff'/%3E%3C/svg%3E");box-shadow:0 0 0 1px #8fc3ff}
+
+  /* Drag and drop */
+  .card,#deckPile,#discardPile{touch-action:none}
+  body{touch-action:manipulation}
+  .dragghost{position:fixed !important;pointer-events:none;z-index:50;margin:0 !important;transform:translate(-50%,-60%) rotate(-4deg) !important;box-shadow:0 10px 24px #000b !important}
+  .hover{outline:3px solid var(--accent) !important;outline-offset:3px}
+
+  /* Dealer panel */
+  .panel{background:var(--panel);border-radius:12px;padding:8px 10px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:13px}
+  .panel .lbl{display:flex;align-items:center;gap:4px;color:var(--muted)}
+  .calc{color:var(--muted)}
+  /* The dealer's options float under the header while open */
+  #dealerPanel{position:fixed;top:56px;left:50%;transform:translateX(-50%);width:min(720px,calc(100% - 24px));z-index:30;
+    max-height:calc(100vh - 200px);overflow-y:auto;border:1px solid #ffffff2a;box-shadow:0 12px 40px #000c;padding:10px 12px}
+  .dp-title{flex-basis:100%;display:flex;justify-content:space-between;align-items:center}
+  /* Dealer panel: each group of related actions sits in its own tinted box */
+  .grp{flex-basis:100%;display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:8px 10px;border-radius:10px;border:1px solid var(--gb);background:var(--gbg)}
+  .grp-lbl{flex-basis:100%;font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--gb)}
+  .grp-sub{flex-basis:100%;display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding-top:6px;border-top:1px dashed #ffffff22}
+  .g-deal{--gb:#f2c14e;--gbg:#f2c14e14}
+  .g-cards{--gb:#6ea8ff;--gbg:#6ea8ff14}
+  .g-play{--gb:#4fd18b;--gbg:#4fd18b12}
+  .g-deck{--gb:#c58bff;--gbg:#c58bff14}
+  #dealToggle{padding:4px 12px;font-size:13px}
+  #dealToggle.open{background:#ffffff1f;color:var(--ink)}
+
+  /* Action log */
+  #log{font-size:13px;color:var(--muted);line-height:1.5;max-height:6.2em;overflow-y:auto}
+  #log .latest{color:var(--ink);background:#f2c14e2b;border-left:3px solid var(--accent);padding-left:6px;border-radius:3px}
+
+  /* Chat dock */
+  #chatDock{position:fixed;left:0;right:0;bottom:0;z-index:5;pointer-events:none}
+  #chatInner{max-width:1100px;margin:0 auto;padding:0 12px 10px;pointer-events:auto}
+  #chatBox{background:#1d2027f2;border:1px solid #ffffff1f;border-radius:14px;padding:6px 10px;box-shadow:0 -4px 20px #0006}
+  #chatMsgs{max-height:62px;overflow-y:auto;font-size:14px;line-height:1.45;padding:2px 2px 6px}
+  #chatDock.open #chatMsgs{max-height:40vh}
+  #chatMsgs .m b{color:var(--accent);font-weight:600}
+  #chatMsgs .m.mine b{color:#8fc3ff}
+  #chatMsgs .none{color:var(--muted)}
+  #chatForm{display:flex;gap:6px}
+  #chatInput{flex:1;min-width:0}
+  #chatToggle{padding:6px 10px}
+
+  /* Floating hint, toast, edit dialog */
+  #hint{position:fixed;left:50%;bottom:132px;transform:translateX(-50%);background:#000c;color:var(--accent);padding:6px 14px;border-radius:99px;font-size:13px;z-index:6;max-width:calc(100% - 32px);text-align:center}
+  #toast{position:fixed;left:50%;top:12px;transform:translateX(-50%);background:#000d;padding:10px 16px;border-radius:10px;opacity:0;transition:opacity .2s;pointer-events:none;max-width:calc(100% - 32px);z-index:60}
+  #toast.show{opacity:1}
+  #editDlg{position:fixed;inset:0;background:#0009;display:grid;place-items:center;z-index:40}
+  #editDlg form{background:var(--panel);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:10px;width:min(320px,calc(100% - 32px))}
+  #editDlg input{width:100%}
+  #editDlg .btns{display:flex;justify-content:flex-end;gap:8px}
+</style>
+</head>
+<body>
+
+<div id="lobby">
+  <h1>Card Table</h1>
+  <label class="lbl" style="flex-direction:column;align-items:stretch;gap:4px;font-size:12px;color:var(--muted)">Your name <input id="name" maxlength="20" autocomplete="off"></label>
+  <div class="or tables-head">Open tables <button id="refreshTablesBtn" class="secondary small" title="Look again for open tables">↻ Refresh</button></div>
+  <div id="tablesList"><div class="none">Looking for open tables…</div></div>
+  <details id="codeBox">
+    <summary>Have a room code?</summary>
+    <div class="row">
+      <input id="code" placeholder="Room code" maxlength="5" autocomplete="off" style="text-transform:uppercase">
+      <button id="joinBtn">Join</button>
+    </div>
+  </details>
+  <div class="or">Start a new table</div>
+  <div class="row">
+    <input id="tableName" maxlength="40" autocomplete="off" placeholder="Game name, e.g. Hokm">
+    <button id="createBtn">Create</button>
+  </div>
+  <div id="lobbyMsg"></div>
+  <div id="installTip" hidden></div>
+</div>
+
+<div id="game" hidden>
+  <header class="hrow">
+    <span class="title" id="tableTitle"></span>
+    <span class="room" data-act="copy" title="Copy invite link">Room <b id="roomCode"></b> ⧉</span>
+    <button id="fsBtn" class="secondary" title="Full screen" hidden>⛶</button>
+    <span id="status"></span>
+    <button id="reconnectBtn" hidden>Reconnect</button>
+    <button class="trump" id="trumpBadge" data-act="trump" title="Tap to change trump">Trump <span>–</span></button>
+  </header>
+
+  <div class="hrow" id="teamsRow" hidden></div>
+
+  <div class="hrow" id="seatRow">
+    <span class="seats-label" title="Seating order: play passes left to right. Tap a player to give them the turn.">Players turn →</span>
+    <div id="seats"></div>
+    <span id="hostCtl"><span id="hostDealer" hidden>Dealer <select id="dealerSel"></select><button id="randomDealerBtn" class="secondary small" title="Pick a random dealer">🎲</button></span>
+      <button id="dealToggle" hidden title="Dealing options">Deal ▾</button></span>
+  </div>
+
+  <section id="opponents"></section>
+
+  <section id="center">
+    <div class="piles">
+      <div class="pile"><div id="deckPile" data-zone="deck"></div><div class="pile-label" id="deckLabel"></div></div>
+      <div class="pile"><div id="discardPile" data-zone="discard"></div><div class="pile-label" id="discardLabel"></div></div>
+    </div>
+    <div id="playArea" data-zone="center"></div>
+    <button id="takeTrickBtn" hidden>Take trick</button>
+    <div id="shownArea" hidden></div>
+  </section>
+
+  <section id="me" class="mat">
+    <div class="mat-head" id="meHead"></div>
+    <div class="mat-body">
+      <div id="myTable"></div>
+      <div id="myHand" class="fanzone cards" data-zone="hand"></div>
+    </div>
+    <div class="mat-body">
+      <div id="myMelds" style="display:contents"></div>
+      <button id="doneBtn" title="Pass the turn to the next player">Done ▸</button>
+    </div>
+  </section>
+
+  <div id="dealerPanel" class="panel" hidden>
+    <div class="dp-title"><strong>Dealer</strong><button id="dealCloseBtn" class="secondary small" title="Close">✕</button></div>
+    <div class="grp g-deal">
+      <span class="grp-lbl">Deal</span>
+      <select id="dealTo">
+        <option value="hand">each player, hand</option>
+        <option value="grid">each player, grid</option>
+        <option value="row">each player, row</option>
+        <option value="table">game table</option>
+      </select>
+      <select id="dealFace" class="tableOnly"><option value="down">face down</option><option value="up">face up</option></select>
+      <label class="lbl gridOnly">Cols <input id="dealCols" type="number" min="1" max="8" value="2"></label>
+      <label class="lbl gridOnly">Rows <input id="dealRows" type="number" min="1" max="8" value="2"></label>
+      <span class="calc gridOnly" id="gridCalc"></span>
+      <label class="lbl countOnly">Cards <input id="dealCount" type="number" min="1" max="52" value="5"></label>
+      <button id="dealBtn">Deal</button>
+      <button id="dealAllBtn" class="secondary">Deal all remaining</button>
+    </div>
+    <div class="grp g-cards">
+      <span class="grp-lbl">Cards</span>
+      <button id="shuffleBtn" class="secondary">Shuffle deck</button>
+      <button id="reshuffleDiscardBtn" class="secondary">Shuffle discard into deck</button>
+      <button id="collectBtn" class="secondary">Collect all &amp; reshuffle</button>
+      <select id="passDealSel" title="Give the deal to another player"></select>
+    </div>
+    <div class="grp g-play">
+      <span class="grp-lbl">Play &amp; scoring</span>
+      <label class="lbl"><input type="checkbox" id="turnsChk" checked> Turn indicator</label>
+      <label class="lbl" title="A face-down card you move stays face down. Long-press a card to flip it; double-tap to peek."><input type="checkbox" id="keepFaceChk"> Moved cards stay face down</label>
+      <label class="lbl"><input type="checkbox" id="teamsChk"> Team scoring</label>
+      <button id="resetScoresBtn" class="secondary">Reset scores</button>
+      <div id="teamAssign" class="grp-sub" hidden></div>
+    </div>
+    <div class="grp g-deck">
+      <span class="grp-lbl">Deck</span>
+      <select id="decksSel"><option value="1">1 deck</option><option value="2">2 decks</option></select>
+      <label class="lbl"><input type="checkbox" id="jokersChk"> Jokers</label>
+      <button id="applyDeckBtn" class="secondary">Use this deck</button>
+    </div>
+  </div>
+
+  <section id="log"></section>
+</div>
+
+<div id="chatDock" hidden>
+  <div id="chatInner">
+    <div id="chatBox">
+      <div id="chatMsgs"></div>
+      <form id="chatForm" autocomplete="off">
+        <input id="chatInput" maxlength="300" placeholder="Chat…">
+        <button type="submit">Send</button>
+        <button type="button" id="chatToggle" class="secondary" title="Show more chat">▴</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<div id="hint" hidden></div>
+<div id="toast"></div>
+<div id="editDlg" hidden>
+  <form id="editForm">
+    <label id="editLabel"></label>
+    <input id="editInput" autocomplete="off">
+    <div class="btns">
+      <button type="button" id="editCancel" class="secondary">Cancel</button>
+      <button type="submit">OK</button>
+    </div>
+  </form>
+</div>
+
+<script>
+/* ============================================================
+   Card Table — host-authoritative multiplayer over PeerJS.
+   The host's browser owns the full game state. Clients send
+   actions; the host validates them, updates state, and sends
+   each player a personal view (hidden cards stripped out).
+   ============================================================ */
+
+const APP_VERSION = '2026-10-25g';            // bump on every update; players on a different copy get a "refresh" warning
+const ID_PREFIX = 'bscardtable-v1-';          // namespace on the public PeerJS server
+const DIR_ID = ID_PREFIX + 'directory';       // well-known ID for the list of open tables
+const MAX_PLAYERS = 8;
+const RANKS = ['A','2','3','4','5','6','7','8','9','10','J','Q','K'];
+const SUITS = ['S','H','D','C'];
+const SYM = {S:'♠', H:'♥', D:'♦', C:'♣', R:'★', B:'★'};
+const RED = new Set(['H','D','R']);
+const TRUMP_CYCLE = [null, 'H', 'D', 'S', 'C'];
+// Player mat colors: distinct hues (no green, that's the table). The first four are the most different.
+const MAT_COLORS = ['#2563eb', '#dc2626', '#9333ea', '#ea7a0c', '#0ea5c6', '#db2777', '#a16207', '#64748b'];
+
+const $ = s => document.querySelector(s);
+const $$ = s => document.querySelectorAll(s);
+
+/* ---------- utilities ---------- */
+function randId(n, alphabet = 'abcdefghijkmnpqrstuvwxyz23456789') {
+  const a = new Uint32Array(n); crypto.getRandomValues(a);
+  return Array.from(a, x => alphabet[x % alphabet.length]).join('');
+}
+function randInt(n) { const a = new Uint32Array(1); crypto.getRandomValues(a); return a[0] % n; }
+function shuffle(arr) {
+  for (let i = arr.length - 1; i > 0; i--) { const j = randInt(i + 1); [arr[i], arr[j]] = [arr[j], arr[i]]; }
+  return arr;
+}
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function fmt(c) { return c.r === 'JK' ? 'a Joker' : `${c.r}${SYM[c.s]}`; }
+function clampInt(v, lo, hi, dflt) { const n = parseInt(v, 10); return Number.isFinite(n) ? Math.max(lo, Math.min(hi, n)) : dflt; }
+function buildDeck(n, jokers) {
+  const d = [];
+  for (let k = 0; k < n; k++) {
+    for (const s of SUITS) for (const r of RANKS) d.push({id: `${r}${s}${k}`, r, s});
+    if (jokers) { d.push({id: `JKR${k}`, r: 'JK', s: 'R'}); d.push({id: `JKB${k}`, r: 'JK', s: 'B'}); }
+  }
+  return d;
+}
+
+// Per-tab identity so a page reload rejoins the same seat,
+// while two tabs on one machine count as two players (handy for testing).
+const myKey = (() => {
+  try {
+    let k = sessionStorage.getItem('ct-key');
+    if (!k) { k = randId(16); sessionStorage.setItem('ct-key', k); }
+    return k;
+  } catch (e) { return randId(16); }
+})();
+
+/* ---------- shared session vars ---------- */
+let peer = null, isHost = false, hostConn = null;
+let myName = '', joinCode = '', inGame = false;
+const conns = new Map();   // host only: playerId -> DataConnection
+let state = null;          // host only: full game state
+let view = null;           // everyone: what this player is allowed to see
+let sortHand = false, lastChatSeq = -1, lastLogLen = -1, dealOpen = false;
+/* Local selection — a reference to one card somewhere on the table:
+   {zone:'deck'} | {zone:'discard'} | {zone:'center', id}
+   {zone:'hand', owner, id}      (your own hand: by card id)
+   {zone:'hand', owner, index}   (someone else's hand: by position, you can't see the cards)
+   {zone:'slot', owner, slot}    (a card in front of a player) */
+let sel = null;
+
+/* ---------- UI helpers ---------- */
+let toastTimer = null;
+function toast(t) {
+  const el = $('#toast'); el.textContent = t; el.classList.add('show');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove('show'), 3000);
+}
+function lobbyMsg(t) { $('#lobbyMsg').textContent = t; }
+function setLobbyBusy(b) { $('#createBtn').disabled = b; $('#joinBtn').disabled = b; }
+function setStatus(t, showReconnect = false) {
+  $('#status').textContent = t;
+  $('#reconnectBtn').hidden = !(showReconnect && !isHost);
+}
+function enterGame() {
+  if (inGame) return;
+  inGame = true;
+  stopBrowse();
+  $('#lobby').hidden = true; $('#game').hidden = false; $('#chatDock').hidden = false;
+  document.body.classList.add('playing');
+}
+
+/* Small edit dialog for scores and team names (lives outside the re-rendered area). */
+let editCb = null;
+function openEdit(label, value, type, cb) {
+  $('#editLabel').textContent = label;
+  const i = $('#editInput'); i.type = type; i.value = value;
+  editCb = cb; $('#editDlg').hidden = false;
+  setTimeout(() => { i.focus(); i.select(); }, 0);
+}
+function closeEdit() { $('#editDlg').hidden = true; editCb = null; }
+
+/* ============================================================
+   LOBBY: list of open tables
+   Hosts register with whichever host holds the well-known
+   directory ID; the first host to grab it becomes the directory.
+   ============================================================ */
+const browse = {peer: null, conn: null, poll: null, retry: null};
+
+function startBrowse() {
+  if (typeof Peer === 'undefined' || inGame) return;
+  const p = new Peer(); browse.peer = p;
+  p.on('open', browseConnect);
+  p.on('error', err => {
+    if (err.type === 'peer-unavailable') { showTables([]); scheduleBrowse(); }   // nobody is hosting yet
+    else if (p.destroyed || err.type === 'network' || err.type === 'server-error') { scheduleRestart(); }
+  });
+  p.on('disconnected', () => { if (!p.destroyed) p.reconnect(); });
+}
+function browseConnect() {
+  if (!browse.peer || browse.peer.destroyed) return;
+  const c = browse.peer.connect(DIR_ID, {reliable: true}); browse.conn = c;
+  // If the list doesn't answer within a few seconds, try again (it may have just appeared or moved).
+  const giveUp = setTimeout(() => { if (browse.conn === c && !c.open) { try { c.close(); } catch (e) {} scheduleBrowse(); } }, 6000);
+  c.on('open', () => {
+    clearTimeout(giveUp);
+    c.send({type: 'list'});
+    clearInterval(browse.poll);
+    browse.poll = setInterval(() => { if (c.open) c.send({type: 'list'}); }, 4000);
+  });
+  c.on('data', m => { if (m && m.type === 'tables') showTables(m.tables || []); });
+  c.on('close', () => { if (browse.conn === c) { clearInterval(browse.poll); scheduleBrowse(); } });
+}
+function scheduleBrowse() {
+  clearTimeout(browse.retry);
+  browse.retry = setTimeout(browseConnect, 4000);
+}
+function scheduleRestart() {
+  clearTimeout(browse.retry);
+  browse.retry = setTimeout(refreshTables, 5000);
+}
+function stopBrowse() {
+  clearInterval(browse.poll); clearTimeout(browse.retry);
+  if (browse.peer) { try { browse.peer.destroy(); } catch (e) {} }
+  browse.peer = null; browse.conn = null;
+}
+// The Refresh button: start the search over from scratch.
+function refreshTables() {
+  if (inGame) return;
+  stopBrowse();
+  $('#tablesList').innerHTML = '<div class="none">Looking for open tables…</div>';
+  startBrowse();
+}
+let invitedCode = '';   // code from an invite link, highlighted if that table is open
+function showTables(list) {
+  const el = $('#tablesList');
+  if (!list.length) { el.innerHTML = '<div class="none">No open tables right now. Start one below, or tap Refresh.</div>'; return; }
+  el.innerHTML = list.map(t => `<div class="tablerow${t.code === invitedCode ? ' invited' : ''}">
+      <div class="tinfo"><div class="tname">${esc(t.name)}</div>
+        <small>${t.code === invitedCode ? 'From your link · ' : ''}Room <b>${esc(t.code)}</b> · ${t.players} player${t.players === 1 ? '' : 's'}</small></div>
+      <button class="joinrow" data-code="${esc(t.code)}">Join</button>
+    </div>`).join('');
+}
+
+/* Host side of the directory */
+const dir = {peer: null, isDir: false, regs: new Map(), conn: null, retry: null, last: ''};
+function tableInfo() {
+  return {code: state.room, name: state.tableName, players: state.players.filter(p => p.connected).length};
+}
+function listTables() {
+  const all = [tableInfo(), ...dir.regs.values()], seen = new Set();
+  return all.filter(t => t && !seen.has(t.code) && seen.add(t.code));
+}
+function startDirectory() {
+  clearTimeout(dir.retry);
+  const p = new Peer(DIR_ID);
+  p.on('open', () => { dir.peer = p; dir.isDir = true; });
+  p.on('connection', c => {
+    c.on('data', m => {
+      if (!m || typeof m !== 'object') return;
+      if (m.type === 'register' && m.info) dir.regs.set(c, {
+        code: String(m.info.code || '').slice(0, 5), name: String(m.info.name || '').slice(0, 40),
+        players: clampInt(m.info.players, 0, MAX_PLAYERS, 0)
+      });
+      else if (m.type === 'list') c.send({type: 'tables', tables: listTables()});
+    });
+    const drop = () => dir.regs.delete(c);
+    c.on('close', drop); c.on('error', drop);
+  });
+  p.on('error', err => {
+    if (dir.isDir) return;
+    try { p.destroy(); } catch (e) {}
+    if (err.type === 'unavailable-id') registerWithDirectory();   // someone else is the directory
+    else scheduleDir();
+  });
+  p.on('disconnected', () => { if (!p.destroyed) p.reconnect(); });
+}
+function registerWithDirectory() {
+  if (!peer || peer.destroyed) return;
+  const c = peer.connect(DIR_ID, {reliable: true}); dir.conn = c; dir.last = '';
+  const giveUp = () => { if (dir.conn === c) { dir.conn = null; try { c.close(); } catch (e) {} scheduleDir(); } };
+  const t = setTimeout(() => { if (!c.open) giveUp(); }, 8000);
+  c.on('open', () => { clearTimeout(t); dirUpdate(); });
+  c.on('close', giveUp); c.on('error', giveUp);
+}
+function scheduleDir() {
+  clearTimeout(dir.retry);
+  dir.retry = setTimeout(startDirectory, 1000 + randInt(3000));   // jitter so hosts don't collide
+}
+function dirUpdate() {
+  if (!dir.conn || !dir.conn.open) return;
+  const info = JSON.stringify(tableInfo());
+  if (info === dir.last) return;
+  dir.last = info;
+  dir.conn.send({type: 'register', info: tableInfo()});
+}
+
+/* ============================================================
+   HOST
+   ============================================================ */
+function createRoom(name, tableName) {
+  setLobbyBusy(true); lobbyMsg('Creating table…');
+  const code = randId(5, 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789');
+  const p = new Peer(ID_PREFIX + code);
+
+  p.on('open', () => {
+    if (isHost) { setStatus(''); return; }   // fired again after a signaling reconnect
+    peer = p; isHost = true; joinCode = code;
+    state = {
+      room: code, tableName: tableName || `${name}'s table`,
+      hostId: myKey, dealerId: myKey, turnId: null, turnsOn: true, trump: null, handNo: 0,
+      keepFace: false,                       // dealer option: a face-down card you move stays face down
+      deckUpId: null,                        // id of the deck's top card while it's flipped face up
+      scoreMode: 'individual',
+      teams: [newTeam('A'), newTeam('B')], teamSeq: 2,
+      teamOf: {},                            // playerId -> team id (team scoring)
+      decks: 1, jokers: false,
+      players: [], deck: shuffle(buildDeck(1, false)),
+      discard: [], center: [],               // center = the game table: {c, by (null if dealt), up}
+      anim: null, animSeq: 0,                // the last batch of card movements, for slide animations
+      hands: {}, tables: {}, tricks: {}, scores: {}, peeks: {}, melds: {}, shown: {}, log: [],
+      chat: [], chatSeq: 0
+    };
+    addOrRejoin(myKey, name);
+    logEvt(`${name} opened the table`);
+    location.hash = code;
+    enterGame(); broadcast();
+    startDirectory();
+  });
+
+  p.on('connection', conn => {
+    conn.on('data', msg => onHostData(conn, msg));
+    conn.on('close', () => onHostClose(conn));
+    conn.on('error', () => onHostClose(conn));
+  });
+
+  // Losing the signaling server doesn't drop existing player connections,
+  // but we reconnect so new/rejoining players can still find the table.
+  p.on('disconnected', () => {
+    if (!p.destroyed) { setStatus('Reconnecting to lobby server…'); p.reconnect(); }
+  });
+
+  p.on('error', err => {
+    if (!isHost) {
+      if (err.type === 'unavailable-id') { p.destroy(); createRoom(name, tableName); return; } // code collision, retry
+      setLobbyBusy(false); lobbyMsg('Could not create table: ' + err.type);
+    } else if (err.type !== 'peer-unavailable') {
+      toast('Network: ' + err.type);
+    }
+  });
+}
+
+function addOrRejoin(key, name) {
+  let p = state.players.find(x => x.id === key);
+  if (p) { p.name = name; p.connected = true; return p; }
+  if (state.players.length >= MAX_PLAYERS) return null;
+  const used = new Set(state.players.map(x => x.color));
+  let color = 0; while (used.has(color)) color++;
+  p = {id: key, name, connected: true, color};
+  state.players.push(p);
+  state.hands[key] = [];
+  state.tables[key] = {cols: 0, slots: []};   // slots: {c, up} or null (empty spot); cols 0 = loose row
+  state.tricks[key] = [];                     // each trick: {cards:[{c,by}], prevTurn}
+  state.scores[key] = 0;
+  if (state.scoreMode === 'teams' && state.teams.length) {
+    // Late joiner in team mode: put them on the smallest team.
+    const size = t => state.players.filter(x => state.teamOf[x.id] === t.id).length;
+    state.teamOf[key] = state.teams.reduce((a, b) => size(b) < size(a) ? b : a).id;
+    autoNameTeams();
+  }
+  state.peeks[key] = new Set();               // ids of hidden cards this player is privately peeking at
+  state.melds[key] = [];                      // lay-down area: array of groups, each an array of face-up cards
+  state.shown[key] = false;                   // hand turned face up for everyone (e.g. showdown)
+  return p;
+}
+
+function onHostData(conn, msg) {
+  if (!msg || typeof msg !== 'object') return;
+
+  if (msg.type === 'hello') {
+    const key = String(msg.key || '').slice(0, 40);
+    const name = String(msg.name || 'Player').slice(0, 20);
+    if (!key || key === state.hostId) {
+      conn.send({type: 'toast', text: 'This tab is already the host. Open a fresh tab to join.'});
+      return;
+    }
+    const existed = state.players.some(p => p.id === key);
+    const p = addOrRejoin(key, name);
+    if (!p) { conn.send({type: 'toast', text: 'Table is full'}); setTimeout(() => conn.close(), 500); return; }
+    const old = conns.get(key);
+    if (old && old !== conn) { try { old.close(); } catch (e) {} }
+    conn.playerId = key; conns.set(key, conn);
+    logEvt(existed ? `${name} reconnected` : `${name} joined`);
+    broadcast();
+    return;
+  }
+
+  if (msg.type === 'action' && conn.playerId) applyAction(conn.playerId, msg.action || {});
+}
+
+function onHostClose(conn) {
+  const id = conn.playerId;
+  if (!id || conns.get(id) !== conn) return;
+  conns.delete(id);
+  const p = state.players.find(x => x.id === id);
+  if (p) { p.connected = false; logEvt(`${p.name} disconnected`); }
+  state.peeks[id].clear();
+  broadcast();
+}
+
+function logEvt(t) { state.log.push(t); if (state.log.length > 40) state.log.shift(); }
+function cardsOut() {
+  let n = state.discard.length + state.center.length;
+  for (const id in state.hands) n += state.hands[id].length;
+  for (const id in state.tables) n += state.tables[id].slots.filter(Boolean).length;
+  for (const id in state.tricks) for (const t of state.tricks[id]) n += t.cards.length;
+  for (const tm of state.teams) for (const t of tm.tricks) n += t.cards.length;
+  for (const id in state.melds) for (const g of state.melds[id]) n += g.length;
+  return n;
+}
+function deckTopUp() { const top = state.deck[state.deck.length - 1]; return !!top && top.id === state.deckUpId; }
+function newTeam(id) { return {id, name: `Team ${id}`, score: 0, tricks: [], custom: false}; }
+// Teams nobody has renamed are named after their players, e.g. "Brian & Jim".
+function autoNameTeams() {
+  for (const t of state.teams) {
+    if (t.custom) continue;
+    const names = state.players.filter(p => state.teamOf[p.id] === t.id).map(p => p.name);
+    t.name = names.length ? names.join(' & ') : `Team ${t.id}`;
+  }
+}
+function teamById(id) { return id ? state.teams.find(t => t.id === id) : null; }
+// In team mode, a player's tricks go to their team's pile.
+function myTeam(pid) { return state.scoreMode === 'teams' ? teamById(state.teamOf[pid]) : null; }
+function nameOf(id) { return (state.players.find(p => p.id === id) || {}).name || '?'; }
+function hasPlayer(id) { return state.players.some(p => p.id === id); }
+function sendToast(pid, t) {
+  if (pid === myKey) { toast(t); return; }
+  const c = conns.get(pid); if (c && c.open) c.send({type: 'toast', text: t});
+}
+// Connected players in seat order, starting with the one after `id`.
+function seatOrderAfter(id) {
+  const ps = state.players, i = ps.findIndex(p => p.id === id), out = [];
+  for (let k = 1; k <= ps.length; k++) { const p = ps[(i + k) % ps.length]; if (p.connected) out.push(p); }
+  return out;
+}
+function nextAfter(id) { const o = seatOrderAfter(id); return o.length ? o[0].id : id; }
+// Peeks are tied to a card; once a card moves (or the deck is shuffled) the peek ends.
+function unpeek(...ids) { for (const pid in state.peeks) for (const id of ids) state.peeks[pid].delete(id); }
+function peekInfo(card, viewer) {
+  let mine = false, eye = false;
+  for (const pid in state.peeks) {
+    if (!state.peeks[pid].has(card.id)) continue;
+    if (pid === viewer) mine = true; else eye = true;
+  }
+  return {mine, eye};
+}
+function parseScore(v) {
+  const n = Number(String(v ?? '').trim() || 0);
+  return Number.isFinite(n) && Math.abs(n) < 1e6 ? Math.round(n * 100) / 100 : null;
+}
+
+/* ---------- moving any card anywhere ---------- */
+function checkFrom(r) {
+  switch (r.zone) {
+    case 'deck': return state.deck.length ? '' : 'The deck is empty';
+    case 'discard': return state.discard.length ? '' : 'The discard pile is empty';
+    case 'center': { const i = parseInt(r.index, 10); return i >= 0 && i < state.center.length ? '' : 'That card has left the table'; }
+    case 'hand': {
+      if (!hasPlayer(r.owner)) return 'No such player';
+      const h = state.hands[r.owner];
+      if (r.id != null) return h.some(c => c.id === r.id) ? '' : 'That card has moved';
+      const i = parseInt(r.index, 10);
+      return i >= 0 && i < h.length ? '' : 'That card has moved';
+    }
+    case 'slot': {
+      if (!hasPlayer(r.owner)) return 'No such player';
+      const i = parseInt(r.slot, 10);
+      return state.tables[r.owner].slots[i] ? '' : 'That card has moved';
+    }
+    case 'meld': {
+      if (!hasPlayer(r.owner)) return 'No such player';
+      const g = state.melds[r.owner][parseInt(r.g, 10)];
+      return g && g[parseInt(r.i, 10)] ? '' : 'That card has moved';
+    }
+  }
+  return 'Unknown source';
+}
+function checkTo(r) {
+  switch (r.zone) {
+    case 'deck': case 'discard': case 'center': return '';
+    case 'hand': return hasPlayer(r.owner) ? '' : 'No such player';
+    case 'slot': {
+      if (!hasPlayer(r.owner)) return 'No such player';
+      const i = parseInt(r.slot, 10);
+      return i >= 0 && i <= state.tables[r.owner].slots.length ? '' : 'That spot no longer exists';
+    }
+    case 'meld': {
+      if (!hasPlayer(r.owner)) return 'No such player';
+      if (r.g != null && !state.melds[r.owner][parseInt(r.g, 10)]) return 'That group is gone';
+      return '';
+    }
+  }
+  return 'Unknown destination';
+}
+function sameSpot(f, t) {
+  if (f.zone !== t.zone) return false;
+  if (f.zone === 'hand') return f.owner === t.owner;
+  if (f.zone === 'slot') return f.owner === t.owner && +f.slot === +t.slot;
+  if (f.zone === 'meld') return f.owner === t.owner && t.g != null && +f.g === +t.g;
+  return true;   // deck→deck, discard→discard, center→center
+}
+// Remove a card from its source. pub = everyone could already see it.
+function takeCard(r) {
+  switch (r.zone) {
+    case 'deck': {
+      const up = deckTopUp(), card = state.deck.pop();
+      if (card.id === state.deckUpId) state.deckUpId = null;
+      return {card, pub: up};
+    }
+    case 'discard': return {card: state.discard.pop(), pub: true};
+    case 'center': {
+      const x = state.center.splice(parseInt(r.index, 10), 1)[0];
+      return {card: x.c, pub: x.up};
+    }
+    case 'hand': {
+      const h = state.hands[r.owner];
+      const i = r.id != null ? h.findIndex(c => c.id === r.id) : parseInt(r.index, 10);
+      return {card: h.splice(i, 1)[0], pub: !!state.shown[r.owner]};
+    }
+    case 'meld': {
+      const gs = state.melds[r.owner], gi = parseInt(r.g, 10), g = gs[gi];
+      const card = g.splice(parseInt(r.i, 10), 1)[0];
+      if (!g.length) gs.splice(gi, 1);
+      return {card, pub: true};
+    }
+    case 'slot': {
+      const t = state.tables[r.owner], i = parseInt(r.slot, 10), s = t.slots[i];
+      t.slots[i] = null;                         // leave a hole so the grid keeps its shape
+      if (!t.slots.some(Boolean)) t.slots = [];
+      return {card: s.c, pub: s.up};
+    }
+  }
+}
+// Put a card at its destination. Returns whether it's now public and any card it bumped.
+// faceUp: how the card lands on the table or in front of a player. Normally face up; with the
+// "stay face down" option, it keeps the face it had where it came from.
+function placeCard(pid, r, card, group, faceUp = true) {
+  switch (r.zone) {
+    case 'deck': state.deck.push(card); return {pub: false};
+    case 'discard': state.discard.push(card); return {pub: true};
+    case 'center': state.center.push({c: card, by: pid, up: faceUp}); return {pub: faceUp};
+    case 'hand': state.hands[r.owner].push(card); return {pub: !!state.shown[r.owner]};
+    case 'meld': {
+      // Onto an existing group: stack it there. Onto empty space: start a new group.
+      const gs = state.melds[r.owner];
+      if (group && gs.includes(group)) group.push(card); else gs.push([card]);
+      return {pub: true};
+    }
+    case 'slot': {
+      const t = state.tables[r.owner], i = parseInt(r.slot, 10);
+      const old = i < t.slots.length ? t.slots[i] : null;
+      if (i >= t.slots.length) t.slots.push({c: card, up: faceUp});
+      else t.slots[i] = {c: card, up: faceUp};
+      if (old) state.discard.push(old.c);      // the card that was there goes to the discard (Golf swap)
+      return {pub: faceUp, bumped: old ? old.c : null};
+    }
+  }
+}
+/* ---------- slide animations ----------
+   Every card movement is recorded as {from, to, card} with screen-independent
+   locations; each client looks those up in its own layout and flies a card between them. */
+let animBatch = null;
+function rec(from, to, card, fromPub, toPub) {
+  if (animBatch && animBatch.length < 80) animBatch.push({from, to, card, fromPub, toPub});
+}
+function locOf(r) {
+  switch (r.zone) {
+    case 'hand': {
+      const h = state.hands[r.owner];
+      return {zone: 'hand', owner: r.owner, index: r.id != null ? h.findIndex(c => c.id === r.id) : +r.index};
+    }
+    case 'slot': return {zone: 'slot', owner: r.owner, slot: +r.slot};
+    case 'meld': return {zone: 'meld', owner: r.owner, g: +r.g, i: +r.i};
+    case 'center': return {zone: 'center', index: +r.index};
+    default: return {zone: r.zone};
+  }
+}
+function destLoc(r, group) {
+  switch (r.zone) {
+    case 'hand': return {zone: 'hand', owner: r.owner, index: state.hands[r.owner].length - 1};
+    case 'center': return {zone: 'center', index: state.center.length - 1};
+    case 'slot': return {zone: 'slot', owner: r.owner, slot: Math.min(+r.slot, state.tables[r.owner].slots.length - 1)};
+    case 'meld': {
+      const gs = state.melds[r.owner];
+      const gi = group && gs.includes(group) ? gs.indexOf(group) : gs.length - 1;
+      return {zone: 'meld', owner: r.owner, g: gi, i: gs[gi].length - 1};
+    }
+    default: return {zone: r.zone};
+  }
+}
+
+function fromPhrase(r, pid) {
+  const n = r.owner === pid ? 'their' : `${nameOf(r.owner)}'s`;
+  return {deck: 'from the deck', discard: 'from the discard', center: 'from the table',
+          hand: `from ${n} hand`, meld: `from ${n} lay-down area`,
+          slot: r.owner === pid ? 'from in front of them' : `from in front of ${nameOf(r.owner)}`}[r.zone];
+}
+function toPhrase(r, pid) {
+  const n = r.owner === pid ? 'their' : `${nameOf(r.owner)}'s`;
+  return {deck: 'onto the deck', discard: 'onto the discard', center: 'onto the table',
+          hand: `into ${n} hand`, meld: `onto ${n} lay-down area`,
+          slot: r.owner === pid ? 'in front of them' : `in front of ${nameOf(r.owner)}`}[r.zone];
+}
+
+// Every game change goes through here, whether it came from the host or a client.
+function applyAction(pid, a) {
+  animBatch = [];
+  const changed = runAction(pid, a);
+  if (animBatch.length) state.anim = {seq: ++state.animSeq, by: pid, moves: animBatch};
+  animBatch = null;
+  if (changed === true) broadcast();
+}
+function runAction(pid, a) {
+  const isDealer = pid === state.dealerId, isHostP = pid === state.hostId;
+  const fail = t => sendToast(pid, t);
+  const me = nameOf(pid);
+
+  switch (a.type) {
+    /* ----- seating, dealer, turn ----- */
+    case 'setDealer': {
+      if (!isHostP) return fail('Only the host can choose the dealer');
+      if (!hasPlayer(a.playerId)) return;
+      state.dealerId = a.playerId;
+      logEvt(`${nameOf(a.playerId)} is now the dealer`);
+      break;
+    }
+    case 'randomDealer': {
+      if (!isHostP) return fail('Only the host can choose the dealer');
+      const c = state.players.filter(p => p.connected);
+      if (!c.length) return;
+      state.dealerId = c[randInt(c.length)].id;
+      logEvt(`${nameOf(state.dealerId)} was picked at random to deal`);
+      break;
+    }
+    case 'passDeal': {
+      if (!isDealer && !isHostP) return fail('Only the dealer can pass the deal');
+      // To a chosen player, or (no choice) the next player around the table.
+      state.dealerId = hasPlayer(a.to) ? a.to : nextAfter(state.dealerId);
+      logEvt(`${me} passed the deal to ${nameOf(state.dealerId)}`);
+      break;
+    }
+    case 'seat': {
+      if (!isDealer && !isHostP) return fail('Only the host or dealer can move players');
+      const from = state.players.findIndex(p => p.id === a.id);
+      const to = clampInt(a.to, 0, state.players.length - 1, -1);
+      if (from < 0 || to < 0 || from === to) return;
+      const [p] = state.players.splice(from, 1);
+      state.players.splice(to, 0, p);
+      logEvt(`${me} moved ${p.name} to seat ${to + 1}`);
+      break;
+    }
+    case 'setTurn': {
+      if (!state.turnsOn || !hasPlayer(a.id)) return;
+      state.turnId = a.id;
+      break;
+    }
+    case 'done': {
+      // "I'm done": the turn passes to the next player after you.
+      if (!state.turnsOn) return;
+      state.turnId = nextAfter(pid);
+      logEvt(`${me} is done; ${nameOf(state.turnId)}'s turn`);
+      break;
+    }
+    case 'turnsOn': {
+      if (!isDealer && !isHostP) return fail('Only the dealer can change this');
+      state.turnsOn = !!a.on;
+      logEvt(`${me} turned the turn indicator ${state.turnsOn ? 'on' : 'off'}`);
+      break;
+    }
+    case 'showHand': {
+      state.shown[pid] = !state.shown[pid];
+      if (state.shown[pid]) unpeek(...state.hands[pid].map(c => c.id));
+      logEvt(state.shown[pid] ? `${me} showed their hand` : `${me} hid their hand again`);
+      break;
+    }
+    case 'trump': {
+      const i = TRUMP_CYCLE.indexOf(state.trump);
+      state.trump = TRUMP_CYCLE[(i + 1) % TRUMP_CYCLE.length];
+      logEvt(state.trump ? `${me} set trump to ${SYM[state.trump]}` : `${me} cleared trump`);
+      break;
+    }
+
+    /* ----- scores and teams ----- */
+    case 'score': {
+      if (!hasPlayer(a.owner)) return;
+      const v = parseScore(a.value); if (v === null) return fail('Enter a number');
+      state.scores[a.owner] = v;
+      logEvt(a.owner === pid ? `${me} set their score to ${v}` : `${me} set ${nameOf(a.owner)}'s score to ${v}`);
+      break;
+    }
+    case 'scoreMode': {
+      if (!isDealer && !isHostP) return fail('Only the dealer can change scoring');
+      state.scoreMode = a.teams ? 'teams' : 'individual';
+      if (a.teams) {
+        if (!state.teams.length) {
+          state.teams = [newTeam('A'), newTeam('B')];
+          state.teamSeq = 2;
+        }
+        // Anyone without a team is placed by seat: 1st→A, 2nd→B, 3rd→A… (partners sit across).
+        state.players.forEach((p, i) => {
+          if (!teamById(state.teamOf[p.id])) state.teamOf[p.id] = state.teams[i % state.teams.length].id;
+        });
+        autoNameTeams();
+      } else {
+        // Back to individual: hand each team's tricks to its first member (or the dealer).
+        for (const t of state.teams) {
+          if (!t.tricks.length) continue;
+          const first = state.players.find(p => state.teamOf[p.id] === t.id);
+          state.tricks[first ? first.id : state.dealerId].push(...t.tricks);
+          t.tricks = [];
+        }
+      }
+      logEvt(`${me} switched to ${a.teams ? 'team' : 'individual'} scoring`);
+      break;
+    }
+    case 'setTeam': {
+      if (!isDealer && !isHostP) return fail('Only the dealer can assign teams');
+      if (!hasPlayer(a.playerId)) return;
+      const t = teamById(a.teamId);
+      if (t) state.teamOf[a.playerId] = t.id; else delete state.teamOf[a.playerId];
+      autoNameTeams();
+      logEvt(t ? `${me} put ${nameOf(a.playerId)} on ${t.name}` : `${me} took ${nameOf(a.playerId)} off their team`);
+      break;
+    }
+    case 'resetScores': {
+      if (!isDealer && !isHostP) return fail('Only the dealer can reset scores');
+      for (const id in state.scores) state.scores[id] = 0;
+      for (const t of state.teams) t.score = 0;
+      logEvt(`${me} reset all scores to 0`);
+      break;
+    }
+    case 'teamName': {
+      const t = state.teams.find(x => x.id === a.id); if (!t) return;
+      const n = String(a.name || '').trim().slice(0, 24); if (!n) return;
+      logEvt(`${me} renamed ${t.name} to ${n}`);
+      t.name = n;
+      t.custom = true;               // stop auto-naming it after its players
+      break;
+    }
+    case 'teamScore': {
+      const t = state.teams.find(x => x.id === a.id); if (!t) return;
+      const v = parseScore(a.value); if (v === null) return fail('Enter a number');
+      t.score = v;
+      logEvt(`${me} set ${t.name}'s score to ${v}`);
+      break;
+    }
+    case 'teamAdd': {
+      if (state.teams.length >= 8) return fail('That is a lot of teams');
+      const id = state.teamSeq < 26 ? String.fromCharCode(65 + state.teamSeq) : `T${state.teamSeq}`;
+      state.teamSeq++;
+      state.teams.push(newTeam(id));
+      logEvt(`${me} added Team ${id}`);
+      break;
+    }
+    case 'teamDel': {
+      const i = state.teams.findIndex(x => x.id === a.id); if (i < 0) return;
+      const t = state.teams[i];
+      if (t.tricks.length) {
+        // Don't lose cards: its tricks go to its first member (or whoever removed it).
+        const first = state.players.find(p => state.teamOf[p.id] === t.id);
+        state.tricks[first ? first.id : pid].push(...t.tricks);
+      }
+      for (const id in state.teamOf) if (state.teamOf[id] === t.id) delete state.teamOf[id];
+      logEvt(`${me} removed ${t.name}`);
+      state.teams.splice(i, 1);
+      autoNameTeams();
+      break;
+    }
+
+    /* ----- deck and dealing ----- */
+    case 'setupDeck': {
+      if (!isDealer) return fail('Only the dealer can change the deck');
+      if (cardsOut() > 0) return fail('Collect all cards before changing the deck');
+      state.decks = a.decks === 2 ? 2 : 1;
+      state.jokers = !!a.jokers;
+      state.deck = shuffle(buildDeck(state.decks, state.jokers));
+      state.deckUpId = null;
+      logEvt(`${me} set up ${state.decks} deck${state.decks > 1 ? 's' : ''}${state.jokers ? ' with jokers' : ''} (${state.deck.length} cards) and shuffled`);
+      break;
+    }
+    case 'shuffle': {
+      state.deckUpId = null;
+      if (!isDealer) return fail('Only the dealer can shuffle');
+      unpeek(...state.deck.map(c => c.id));
+      shuffle(state.deck);
+      logEvt(`${me} shuffled the deck`);
+      break;
+    }
+    case 'reshuffleDiscard': {
+      state.deckUpId = null;
+      if (!isDealer) return fail('Only the dealer can do that');
+      if (state.discard.length < 2) return fail('Nothing under the top discard to shuffle in');
+      const top = state.discard.pop();
+      unpeek(...state.deck.map(c => c.id));
+      state.deck = shuffle(state.deck.concat(state.discard));
+      state.discard = [top];
+      logEvt(`${me} shuffled the discard pile into the deck (kept ${fmt(top)} on top)`);
+      break;
+    }
+    case 'collect': {
+      if (!isDealer) return fail('Only the dealer can collect the cards');
+      for (const id in state.hands) state.hands[id] = [];
+      for (const id in state.tables) state.tables[id] = {cols: 0, slots: []};
+      for (const id in state.tricks) state.tricks[id] = [];
+      for (const t of state.teams) t.tricks = [];
+      for (const id in state.melds) state.melds[id] = [];
+      for (const id in state.shown) state.shown[id] = false;
+      state.discard = []; state.center = [];
+      for (const id in state.peeks) state.peeks[id].clear();
+      state.deck = shuffle(buildDeck(state.decks, state.jokers));
+      state.deckUpId = null;
+      logEvt(`${me} collected all cards and shuffled`);
+      break;
+    }
+    case 'deal': {
+      if (!isDealer) return fail('Only the dealer can deal');
+      const to = ['grid', 'row', 'hand', 'table'].includes(a.to) ? a.to : 'hand';
+      const cols = clampInt(a.cols, 1, 8, 2), rows = clampInt(a.rows, 1, 8, 2);
+      const count = to === 'grid' ? cols * rows : clampInt(a.count, 1, 52, 5);
+      const faceUp = !!a.faceUp;
+      const order = seatOrderAfter(state.dealerId);
+      if (!order.length) return;
+      if (!state.deck.length) return fail('The deck is empty');
+
+      // To the game table: N cards in total, face up or down, overlapping in the middle.
+      if (to === 'table') {
+        if (count > state.deck.length) return fail(`Not enough cards: deck has ${state.deck.length}`);
+        if (cardsOut() === 0) state.handNo++;
+        for (let k = 0; k < count; k++) {
+          const c = state.deck.pop();
+          unpeek(c.id);
+          state.center.push({c, by: null, up: faceUp});
+          rec({zone: 'deck'}, {zone: 'center', index: state.center.length - 1}, c, false, faceUp);
+        }
+        logEvt(`${me} dealt ${count} card${count > 1 ? 's' : ''} ${faceUp ? 'face up' : 'face down'} to the table`);
+        break;
+      }
+      const all = !!a.all && to !== 'grid';
+      if (!all && count * order.length > state.deck.length)
+        return fail(`Not enough cards: need ${count * order.length}, deck has ${state.deck.length}`);
+
+      // First deal from a gathered deck starts a new hand.
+      if (cardsOut() === 0) state.handNo++;
+
+      if (to !== 'hand') {
+        // A fresh layout replaces an empty tableau's shape; otherwise cards are added on.
+        for (const p of order) {
+          const t = state.tables[p.id];
+          if (!t.slots.some(Boolean)) t.slots = [];
+          t.cols = to === 'grid' ? cols : 0;
+        }
+      }
+      const got = new Map(order.map(p => [p.id, 0]));
+      const give = p => {
+        const c = state.deck.pop();
+        unpeek(c.id);
+        if (to === 'hand') {
+          state.hands[p.id].push(c);
+          rec({zone: 'deck'}, {zone: 'hand', owner: p.id, index: state.hands[p.id].length - 1}, c, false, false);
+        } else {
+          state.tables[p.id].slots.push({c, up: faceUp});
+          rec({zone: 'deck'}, {zone: 'slot', owner: p.id, slot: state.tables[p.id].slots.length - 1}, c, false, faceUp);
+        }
+        got.set(p.id, got.get(p.id) + 1);
+      };
+      if (all) {
+        dealing: while (true) for (const p of order) { if (!state.deck.length) break dealing; give(p); }
+      } else {
+        for (let r = 0; r < count; r++) for (const p of order) give(p);
+      }
+      state.turnId = order[0].id;   // play starts left of the dealer
+
+      const where = to === 'hand' ? 'to each hand'
+        : `${faceUp ? 'face up' : 'face down'} in front of each player${to === 'grid' ? ` (${cols}×${rows})` : ''}`;
+      if (all) {
+        const n = [...got.values()], lo = Math.min(...n), hi = Math.max(...n);
+        logEvt(`${me} dealt out the rest of the deck ${where} (${lo === hi ? lo : `${lo}–${hi}`} each)`);
+      } else {
+        logEvt(`${me} dealt ${count} card${count > 1 ? 's' : ''} ${where}`);
+      }
+      break;
+    }
+
+    /* ----- free-form play (anyone, any time, any card) ----- */
+    case 'move': {
+      const f = a.from || {}, t = a.to || {};
+      const err = checkFrom(f) || checkTo(t);
+      if (err) return fail(err);
+      if (sameSpot(f, t)) return;
+
+      // Out-of-turn rule: if nobody has played to the table yet and someone starts
+      // playing from their own cards (or the deck/discard), the turn jumps to them.
+      const ownSource = f.zone === 'deck' || f.zone === 'discard' ||
+        ((f.zone === 'hand' || f.zone === 'slot') && f.owner === pid);
+      // (Cards the dealer put on the table, like community cards, don't count as plays.)
+      if (!state.center.some(x => x.by) && ownSource && pid !== state.turnId) state.turnId = pid;
+
+      // A card in front of someone onto another occupied spot: the two trade places.
+      if (f.zone === 'slot' && t.zone === 'slot') {
+        const A = state.tables[f.owner].slots, B = state.tables[t.owner].slots;
+        const fi = +f.slot, ti = +t.slot;
+        if (ti < B.length && B[ti]) {
+          const x = A[fi], y = B[ti];
+          unpeek(x.c.id, y.c.id);
+          A[fi] = y; B[ti] = x;
+          rec(locOf(f), locOf(t), x.c, x.up, x.up);
+          rec(locOf(t), locOf(f), y.c, y.up, y.up);
+          const txt = s => s.up ? fmt(s.c) : 'a face-down card';
+          logEvt(`${me} swapped ${txt(x)} ${fromPhrase(f, pid)} with ${txt(y)} ${fromPhrase(t, pid).replace('from ', '')}`);
+          break;
+        }
+      }
+
+      // Resolve the target group before removing the card (removal can shift group positions).
+      const group = t.zone === 'meld' && t.g != null ? state.melds[t.owner][parseInt(t.g, 10)] : null;
+      const fromLoc = locOf(f);
+      const src = takeCard(f);
+      unpeek(src.card.id);
+      const dst = placeCard(pid, t, src.card, group, state.keepFace ? src.pub : true);
+      const card = src.card;
+      const toLoc = destLoc(t, group);
+      rec(fromLoc, toLoc, card, src.pub, dst.pub);
+      if (dst.bumped) rec(toLoc, {zone: 'discard'}, dst.bumped, true, true);
+      const txt = (src.pub || dst.pub) ? fmt(card) : 'a card';
+      const mine = r => r.owner === pid;
+      let line;
+      if (f.zone === 'deck' && t.zone === 'hand' && mine(t)) line = `${me} drew a card`;
+      else if (f.zone === 'hand' && mine(f) && t.zone === 'center') line = `${me} played ${txt}`;
+      else if (f.zone === 'hand' && mine(f) && t.zone === 'discard') line = `${me} discarded ${txt}`;
+      else if (f.zone === 'discard' && t.zone === 'hand' && mine(t)) line = `${me} took ${txt} from the discard`;
+      else if (f.zone === 'deck' && t.zone === 'discard') line = `${me} turned ${txt} onto the discard`;
+      else if (f.zone === 'hand' && mine(f) && t.zone === 'meld' && mine(t)) line = `${me} laid down ${txt}`;
+      else line = `${me} moved ${txt} ${fromPhrase(f, pid)} ${toPhrase(t, pid)}`;
+      if (dst.bumped) line += `, discarding ${fmt(dst.bumped)}`;
+      logEvt(line);
+
+      // Turn tracking: playing or discarding ends your turn.
+      if (pid === state.turnId && (t.zone === 'center' || t.zone === 'discard' || dst.bumped)) {
+        state.turnId = nextAfter(pid);
+      }
+      break;
+    }
+    case 'peek': {
+      // Toggle a private look at any hidden card: top of the deck, a card in
+      // someone else's hand, or a face-down card in front of anyone.
+      const r = a.ref || {};
+      let card = null, where = '';
+      if (r.zone === 'deck') {
+        card = state.deck[state.deck.length - 1]; where = 'the top of the deck';
+      } else if (r.zone === 'hand' && hasPlayer(r.owner) && r.owner !== pid && !state.shown[r.owner]) {
+        card = state.hands[r.owner][parseInt(r.index, 10)]; where = `a card in ${nameOf(r.owner)}'s hand`;
+      } else if (r.zone === 'center') {
+        const x = state.center[parseInt(r.index, 10)];
+        if (x && !x.up) card = x.c;
+        where = 'a face-down card on the table';
+      } else if (r.zone === 'slot' && hasPlayer(r.owner)) {
+        const s = state.tables[r.owner].slots[parseInt(r.slot, 10)];
+        if (s && !s.up) card = s.c;
+        where = r.owner === pid ? 'a card in front of them' : `a card in front of ${nameOf(r.owner)}`;
+      }
+      if (!card) return;
+      const set = state.peeks[pid];
+      if (set.has(card.id)) { set.delete(card.id); break; }
+      set.add(card.id);
+      if (!(r.zone === 'slot' && r.owner === pid)) logEvt(`${me} peeked at ${where}`);
+      break;
+    }
+    case 'flipDeck': {
+      // Turn the deck's top card face up for everyone (or back down).
+      const top = state.deck[state.deck.length - 1];
+      if (!top) return;
+      state.deckUpId = deckTopUp() ? null : top.id;
+      unpeek(top.id);
+      logEvt(state.deckUpId ? `${me} turned up ${fmt(top)} on top of the deck` : `${me} turned the top of the deck back down`);
+      break;
+    }
+    case 'keepFace': {
+      if (!isDealer && !isHostP) return fail('Only the dealer can change this');
+      state.keepFace = !!a.on;
+      logEvt(state.keepFace ? `${me} set moved cards to stay face down` : `${me} set moved cards to land face up`);
+      break;
+    }
+    case 'flip': {
+      // Turn a card on the game table over, for everyone.
+      const x = state.center[parseInt(a.index, 10)];
+      if (!x) return;
+      x.up = !x.up;
+      unpeek(x.c.id);
+      logEvt(x.up ? `${me} turned up ${fmt(x.c)} on the table` : `${me} turned a card face down on the table`);
+      break;
+    }
+    case 'flipSlot': {
+      // Turn a card in front of a player over for everyone (e.g. Golf: reveal a card you peeked at).
+      if (!hasPlayer(a.owner)) return;
+      const s = state.tables[a.owner].slots[parseInt(a.slot, 10)];
+      if (!s) return;
+      s.up = !s.up;
+      unpeek(s.c.id);
+      const where = a.owner === pid ? 'in front of them' : `in front of ${nameOf(a.owner)}`;
+      logEvt(s.up ? `${me} turned up ${fmt(s.c)} ${where}` : `${me} turned a card face down ${where}`);
+      break;
+    }
+    case 'takeTrick': {
+      if (!state.center.length) return fail('There are no cards on the table');
+      const n = state.center.length;
+      const team = myTeam(pid);
+      const pileLoc = team ? {zone: 'tricks', team: team.id} : {zone: 'tricks', owner: pid};
+      state.center.forEach((x, i) => rec({zone: 'center', index: i}, pileLoc, x.c, x.up, false));
+      (team ? team.tricks : state.tricks[pid]).push({cards: state.center, prevTurn: state.turnId, by: pid});
+      state.center = [];
+      state.turnId = pid;           // trick winner usually leads next
+      logEvt(`${me} took the trick (${n} card${n > 1 ? 's' : ''})${team ? ` for ${team.name}` : ''}`);
+      break;
+    }
+    case 'undoTrick': {
+      // Your own pile, or (team mode) your team's pile.
+      let pile, pileLoc;
+      if (a.team != null) {
+        const team = teamById(a.team); if (!team) return;
+        if (state.teamOf[pid] !== team.id) return fail(`Only a member of ${team.name} can put its trick back`);
+        pile = team.tricks; pileLoc = {zone: 'tricks', team: team.id};
+      } else {
+        pile = state.tricks[pid]; pileLoc = {zone: 'tricks', owner: pid};
+      }
+      if (!pile.length) return;
+      const t = pile.pop();
+      t.cards.forEach((x, i) => rec(pileLoc, {zone: 'center', index: state.center.length + i}, x.c, false, x.up));
+      state.center = state.center.concat(t.cards);
+      state.turnId = t.prevTurn;
+      logEvt(`${me} put the last trick back on the table`);
+      break;
+    }
+
+    /* ----- chat ----- */
+    case 'chat': {
+      const text = String(a.text || '').trim().slice(0, 300);
+      if (!text) return;
+      state.chat.push({seq: ++state.chatSeq, by: pid, name: me, text});
+      if (state.chat.length > 100) state.chat.shift();
+      break;
+    }
+    default: return;
+  }
+  return true;   // state changed (early returns above mean nothing happened)
+}
+
+// Strip anything this player shouldn't see: other hands, and face-down cards
+// (except your own card while you're peeking at it).
+function viewFor(pid) {
+  return {
+    you: pid, room: state.room, tableName: state.tableName, version: APP_VERSION,
+    hostId: state.hostId, dealerId: state.dealerId, turnId: state.turnId, turnsOn: state.turnsOn,
+    trump: state.trump, handNo: state.handNo,
+    scoreMode: state.scoreMode,
+    teams: state.teams.map(t => ({id: t.id, name: t.name, score: t.score, tricks: t.tricks.length})),
+    decks: state.decks, jokers: state.jokers, deckCount: state.deck.length,
+    keepFace: state.keepFace,
+    deckTop: (() => {
+      const top = state.deck[state.deck.length - 1]; if (!top) return null;
+      const up = deckTopUp(), pk = up ? {mine: false, eye: false} : peekInfo(top, pid);
+      return {c: up || pk.mine ? top : null, up, mine: pk.mine, eye: pk.eye};
+    })(),
+    discardTop: state.discard.length ? state.discard[state.discard.length - 1] : null,
+    discardCount: state.discard.length,
+    center: state.center.map(x => {
+      const p = x.by && state.players.find(q => q.id === x.by);
+      const pk = x.up ? {mine: false, eye: false} : peekInfo(x.c, pid);
+      return {c: x.up || pk.mine ? x.c : null, up: x.up, mine: pk.mine, eye: pk.eye, byId: x.by, by: p ? p.name : '', color: p ? p.color : null};
+    }),
+    // Card movements from the last action. The face is shown only if this viewer could see the card.
+    anim: state.anim && {
+      seq: state.anim.seq, by: state.anim.by,
+      moves: state.anim.moves.map(m => {
+        const ownHand = l => l.zone === 'hand' && l.owner === pid;
+        const see = m.fromPub || m.toPub || ownHand(m.from) || ownHand(m.to);
+        return {from: m.from, to: m.to, c: see ? m.card : null};
+      })
+    },
+    cardsOut: cardsOut(), log: state.log.slice(-12), logLen: state.log.length,
+    chat: state.chat.slice(-60),
+    players: state.players.map(p => ({
+      id: p.id, name: p.name, connected: p.connected, color: p.color,
+      score: state.scores[p.id],
+      handCount: state.hands[p.id].length,
+      // Your own hand: the cards, plus which ones others are peeking at.
+      hand: p.id === pid ? state.hands[p.id] : null,
+      handEye: p.id === pid ? state.hands[p.id].filter(c => peekInfo(c, pid).eye).map(c => c.id) : null,
+      // Someone else's hand: one entry per card, revealed only if they're showing it or you're peeking.
+      shown: !!state.shown[p.id],
+      backs: p.id === pid ? null : state.hands[p.id].map(c => {
+        if (state.shown[p.id]) return {c, mine: false, eye: false};
+        const pk = peekInfo(c, pid);
+        return {c: pk.mine ? c : null, mine: pk.mine, eye: pk.eye};
+      }),
+      melds: state.melds[p.id],
+      tricks: state.tricks[p.id].length,
+      teamId: teamById(state.teamOf[p.id]) ? state.teamOf[p.id] : null,
+      table: {
+        cols: state.tables[p.id].cols,
+        slots: state.tables[p.id].slots.map(s => {
+          if (!s) return null;
+          const pk = peekInfo(s.c, pid);
+          return {up: s.up, mine: pk.mine && !s.up, eye: pk.eye && !s.up, c: (s.up || pk.mine) ? s.c : null};
+        })
+      }
+    }))
+  };
+}
+
+function broadcast() {
+  for (const [id, c] of conns) {
+    if (c.open) { try { c.send({type: 'state', view: viewFor(id)}); } catch (e) {} }
+  }
+  view = viewFor(myKey);
+  render();
+  dirUpdate();
+}
+
+/* ============================================================
+   CLIENT
+   ============================================================ */
+function joinRoom(name, code) {
+  if (peer) { try { peer.destroy(); } catch (e) {} }
+  joinCode = code;
+  const p = new Peer(); peer = p;
+  let gotState = false;
+
+  const failJoin = t => {
+    if (inGame) setStatus(t, true);
+    else { lobbyMsg(t); setLobbyBusy(false); }
+  };
+  if (inGame) setStatus('Reconnecting…'); else { setLobbyBusy(true); lobbyMsg('Connecting…'); }
+
+  const timer = setTimeout(() => {
+    if (!gotState) {
+      failJoin('No answer from that table. Check the code, and make sure the host still has the page open.');
+      try { p.destroy(); } catch (e) {}
+    }
+  }, 15000);
+
+  p.on('open', () => {
+    if (hostConn && hostConn.peer === ID_PREFIX + code && hostConn.open) return; // signaling reconnect
+    const conn = p.connect(ID_PREFIX + code, {reliable: true});
+    hostConn = conn;
+    conn.on('open', () => conn.send({type: 'hello', key: myKey, name}));
+    conn.on('data', msg => {
+      if (!msg || typeof msg !== 'object') return;
+      if (msg.type === 'state') {
+        if (!gotState) { gotState = true; clearTimeout(timer); location.hash = code; enterGame(); setStatus(''); }
+        view = msg.view; render();
+        if (view.version !== APP_VERSION) setStatus('⚠ Your copy of the game differs from the host’s. Refresh this page (Ctrl+F5); the host may need to refresh too.');
+      } else if (msg.type === 'toast') {
+        toast(msg.text);
+      }
+    });
+    conn.on('close', () => { if (gotState && hostConn === conn) setStatus('Lost connection to the host.', true); });
+  });
+
+  p.on('error', err => {
+    if (err.type === 'peer-unavailable') {
+      clearTimeout(timer);
+      failJoin(inGame ? 'The host is unreachable.' : `Table ${code} not found.`);
+    } else if (!gotState) {
+      clearTimeout(timer); failJoin('Connection error: ' + err.type);
+    } else {
+      setStatus('Network error: ' + err.type, true);
+    }
+  });
+
+  p.on('disconnected', () => { if (!p.destroyed) p.reconnect(); });
+}
+
+/* ============================================================
+   ACTIONS (same call for host and clients)
+   ============================================================ */
+function act(a) {
+  if (isHost) applyAction(myKey, a);
+  else if (hostConn && hostConn.open) hostConn.send({type: 'action', action: a});
+  else toast('Not connected to the host');
+}
+
+/* ============================================================
+   TAP HANDLING — tap any card to pick it up, then tap where it goes
+   ============================================================ */
+function myView() { return view && view.players.find(p => p.id === view.you); }
+function playerView(id) { return view.players.find(p => p.id === id); }
+function sameRef(a, b) {
+  if (!a || !b || a.zone !== b.zone) return false;
+  if (a.zone === 'center') return +a.index === +b.index;
+  if (a.zone === 'hand') return a.owner === b.owner && (a.id != null ? a.id === b.id : +a.index === +b.index);
+  if (a.zone === 'slot') return a.owner === b.owner && +a.slot === +b.slot;
+  if (a.zone === 'meld') return a.owner === b.owner && +a.g === +b.g && +a.i === +b.i;
+  return true;
+}
+// The card a tapped/dragged element refers to (null if it isn't a card you can pick up).
+function itemFor(zone, d) {
+  switch (zone) {
+    case 'deck': return view.deckCount ? {zone: 'deck'} : null;
+    case 'discard': return view.discardCount ? {zone: 'discard'} : null;
+    case 'center-card': return {zone: 'center', index: +d.index};
+    case 'hand-card': return d.id != null ? {zone: 'hand', owner: d.owner, id: d.id} : {zone: 'hand', owner: d.owner, index: +d.index};
+    case 'slot': {
+      const p = playerView(d.owner);
+      return p && p.table.slots[+d.slot] ? {zone: 'slot', owner: d.owner, slot: +d.slot} : null;
+    }
+    case 'meld-card': return {zone: 'meld', owner: d.owner, g: +d.g, i: +d.i};
+  }
+  return null;
+}
+// Where a held card goes if it's dropped on / tapped onto this element.
+function destFor(zone, d) {
+  switch (zone) {
+    case 'deck': return {zone: 'deck'};
+    case 'discard': return {zone: 'discard'};
+    case 'center': case 'center-card': return {zone: 'center'};
+    case 'hand': case 'hand-card': return {zone: 'hand', owner: d.owner};
+    case 'slot': case 'slot-add': return {zone: 'slot', owner: d.owner, slot: +d.slot};
+    case 'meld': return {zone: 'meld', owner: d.owner};                 // empty space: new group
+    case 'meld-card': return {zone: 'meld', owner: d.owner, g: +d.g};   // onto a group: stack it
+  }
+  return null;
+}
+// Face-down cards you could peek at: the deck, other players' hand cards, any face-down spot.
+function peekRefFor(zone, d) {
+  if (zone === 'deck') return view.deckCount && !(view.deckTop && view.deckTop.up) ? {zone: 'deck'} : null;
+  if (zone === 'center-card') {
+    const x = view.center[+d.index];
+    return x && !x.up ? {zone: 'center', index: +d.index} : null;
+  }
+  if (zone === 'hand-card' && d.owner !== view.you) {
+    const p = playerView(d.owner);
+    return p && !p.shown ? {zone: 'hand', owner: d.owner, index: +d.index} : null;
+  }
+  if (zone === 'slot') {
+    const p = playerView(d.owner), s = p && p.table.slots[+d.slot];
+    return s && !s.up ? {zone: 'slot', owner: d.owner, slot: +d.slot} : null;
+  }
+  return null;
+}
+function doMove(from, to) {
+  sel = null;
+  if (to && !sameRef(from, to)) act({type: 'move', from, to});
+  render();
+}
+
+function onTap(zone, d) {
+  if (!myView()) return;
+  if (zone === 'tricks') {
+    if (sel) { sel = null; render(); return; }
+    if (d.team) act({type: 'undoTrick', team: d.team});          // server checks you're on that team
+    else if (d.owner === view.you) act({type: 'undoTrick'});
+    else toast('Only the player who took a trick can put it back');
+    return;
+  }
+  const item = itemFor(zone, d), dest = destFor(zone, d);
+
+  if (!sel) { if (item) { sel = item; render(); } return; }
+  if (sameRef(sel, item)) { sel = null; render(); return; }
+
+  // Tapping another card in your own hand, or another card in front of you, just switches selection.
+  const ownGroup = r => r && (r.zone === 'hand' || r.zone === 'slot') && r.owner === view.you ? r.zone : null;
+  if (item && ownGroup(sel) && ownGroup(sel) === ownGroup(item)) { sel = item; render(); return; }
+
+  if (dest) doMove(sel, dest);
+}
+
+/* Single vs double tap. A tap on a face-down card waits briefly to see whether a
+   second tap follows (double-tap = peek); every other tap acts immediately. */
+const DOUBLE_TAP_MS = 300;
+let pendingTap = null;
+function flushPendingTap() {
+  if (!pendingTap) return;
+  const p = pendingTap; pendingTap = null;
+  clearTimeout(p.timer);
+  onTap(p.zone, p.d);
+}
+// What a double-tap on this element does: flip it for everyone (game table) or peek privately.
+function doubleTapAction(zone, d) {
+  // Game table: double-tap flips for everyone. With "stay face down" on, double-tap peeks instead
+  // (long-press flips).
+  if (zone === 'center-card' && !view.keepFace) return {type: 'flip', index: +d.index};
+  const pref = peekRefFor(zone, d);
+  return pref ? {type: 'peek', ref: pref} : null;
+}
+function handleTap(zone, d) {
+  const dbl = view ? doubleTapAction(zone, d) : null;
+  if (!dbl) { flushPendingTap(); onTap(zone, d); return; }
+  const key = JSON.stringify(dbl);
+  if (pendingTap && pendingTap.key === key) {
+    clearTimeout(pendingTap.timer); pendingTap = null;
+    sel = null;                              // a double-tap drops whatever you were holding
+    act(dbl);
+    render();
+    return;
+  }
+  flushPendingTap();
+  pendingTap = {key, zone, d, timer: setTimeout(flushPendingTap, DOUBLE_TAP_MS)};
+}
+
+/* Drag and drop: press on a card, drag it, let go over where it goes. */
+let cdrag = null, suppressClick = false;
+// Throw away a drag without doing anything (and remove its floating copy).
+function abandonDrag() {
+  if (!cdrag) return;
+  const d = cdrag; cdrag = null;
+  clearTimeout(d.lp);
+  if (d.ghost) d.ghost.remove();
+  if (d.over) d.over.classList.remove('hover');
+  if (d.moved) { sel = null; render(); }
+}
+// Safety net: any floating drag copy that isn't the current drag's is a leftover. Remove it.
+function sweepGhosts() {
+  document.querySelectorAll('.dragghost').forEach(g => { if (!cdrag || g !== cdrag.ghost) g.remove(); });
+}
+$('#game').addEventListener('pointerdown', e => {
+  if (e.button > 0 || !view || e.target.closest('#seats')) return;
+  if (e.isPrimary === false) return;            // ignore a second finger
+  abandonDrag();                                // a new touch always starts clean
+  sweepGhosts();
+  const el = e.target.closest('[data-zone]'); if (!el) return;
+  const d = {...el.dataset}, item = itemFor(d.zone, d);
+  if (!item) return;
+  const rec = cdrag = {item, el, d, id: e.pointerId, x: e.clientX, y: e.clientY, lastX: e.clientX, lastY: e.clientY,
+                       moved: false, ghost: null, over: null, long: false};
+  rec.lp = setTimeout(() => onLongPress(rec), LONG_PRESS_MS);
+});
+/* Long-press: flip a card over for everyone (table cards and cards in front of a player). */
+const LONG_PRESS_MS = 550;
+function onLongPress(rec) {
+  if (cdrag !== rec || rec.moved) return;
+  rec.long = true;
+  if (pendingTap) { clearTimeout(pendingTap.timer); pendingTap = null; }
+  sel = null;
+  const {zone, owner, slot, index} = rec.d;
+  if (navigator.vibrate) { try { navigator.vibrate(25); } catch (e) {} }
+  if (zone === 'center-card') act({type: 'flip', index: +index});
+  else if (zone === 'slot') act({type: 'flipSlot', owner, slot: +slot});
+  else if (zone === 'deck') act({type: 'flipDeck'});
+  else toast('Long-press flips cards on the table, in front of a player, or on top of the deck. Use Show hand for your hand.');
+  render();
+}
+window.addEventListener('pointermove', e => {
+  if (!cdrag || cdrag.long || e.pointerId !== cdrag.id) return;
+  cdrag.lastX = e.clientX; cdrag.lastY = e.clientY;
+  if (!cdrag.moved) {
+    if (Math.hypot(e.clientX - cdrag.x, e.clientY - cdrag.y) < 8) return;
+    cdrag.moved = true;
+    clearTimeout(cdrag.lp);
+    if (pendingTap) { clearTimeout(pendingTap.timer); pendingTap = null; }
+    const src = cdrag.el.classList.contains('card') ? cdrag.el : cdrag.el.querySelector('.card');
+    if (src) {
+      cdrag.ghost = src.cloneNode(true);
+      cdrag.ghost.classList.remove('selected', 'drop');
+      cdrag.ghost.classList.add('dragghost');
+      document.body.appendChild(cdrag.ghost);
+    }
+    sel = cdrag.item;     // shows the drop outlines
+    render();
+  }
+  if (cdrag.ghost) { cdrag.ghost.style.left = e.clientX + 'px'; cdrag.ghost.style.top = e.clientY + 'px'; }
+  const under = document.elementFromPoint(e.clientX, e.clientY);
+  const z = under && under.closest('#game [data-zone]');
+  if (cdrag.over && cdrag.over !== z) cdrag.over.classList.remove('hover');
+  cdrag.over = z && destFor(z.dataset.zone, z.dataset) ? z : null;
+  if (cdrag.over) cdrag.over.classList.add('hover');
+});
+function endCardDrag(e, cancelled) {
+  if (!cdrag || (e.pointerId != null && e.pointerId !== cdrag.id)) return;
+  const d = cdrag; cdrag = null;
+  clearTimeout(d.lp);
+  if (d.long) {                                // the long-press already acted; swallow the click that follows
+    suppressClick = true; setTimeout(() => { suppressClick = false; }, 400);
+    return;
+  }
+  if (!d.moved) return;                        // plain tap: the click handler takes it
+  suppressClick = true; setTimeout(() => { suppressClick = false; }, 0);
+  if (d.ghost) d.ghost.remove();
+  if (d.over) d.over.classList.remove('hover');
+  if (cancelled) { sel = null; render(); return; }
+  const under = document.elementFromPoint(e.clientX, e.clientY);
+  const z = under && under.closest('#game [data-zone]');
+  const to = z ? destFor(z.dataset.zone, z.dataset) : null;
+  if (to && !sameRef(d.item, to)) {
+    skipMyNextAnim = true;                       // you already carried it there
+    setTimeout(() => { skipMyNextAnim = false; }, 1500);
+  }
+  doMove(d.item, to);
+}
+window.addEventListener('pointerup', e => endCardDrag(e, false));
+window.addEventListener('pointercancel', e => endCardDrag(e, true));
+// iPhones sometimes never send the "finger lifted" pointer event. If the touch itself ended and
+// the drag is still open a moment later, finish it from where the finger last was.
+function touchEnded() {
+  const rec = cdrag;
+  if (!rec) return;
+  setTimeout(() => {
+    if (cdrag !== rec) return;                  // the normal pointerup already handled it
+    if (rec.moved) endCardDrag({pointerId: rec.id, clientX: rec.lastX, clientY: rec.lastY}, false);
+    else { clearTimeout(rec.lp); cdrag = null; }
+  }, 80);
+}
+window.addEventListener('touchend', touchEnded, {passive: true});
+window.addEventListener('touchcancel', () => { const rec = cdrag; setTimeout(() => { if (cdrag === rec) abandonDrag(); }, 80); }, {passive: true});
+window.addEventListener('blur', abandonDrag);
+document.addEventListener('visibilitychange', () => { if (document.hidden) { abandonDrag(); sweepGhosts(); } });
+
+/* Header / mat buttons that aren't cards */
+function onAct(kind, d) {
+  switch (kind) {
+    case 'copy': copyLink(); break;
+    case 'trump': act({type: 'trump'}); break;
+    case 'score': {
+      const p = playerView(d.owner); if (!p) return;
+      openEdit(p.id === view.you ? 'Your score' : `${p.name}'s score`, p.score ?? 0, 'number',
+        v => act({type: 'score', owner: p.id, value: v}));
+      break;
+    }
+    case 'teamName': {
+      const t = view.teams.find(x => x.id === d.id); if (!t) return;
+      openEdit('Team name', t.name, 'text', v => act({type: 'teamName', id: t.id, name: v}));
+      break;
+    }
+    case 'teamScore': {
+      const t = view.teams.find(x => x.id === d.id); if (!t) return;
+      openEdit(`${t.name} score`, t.score, 'number', v => act({type: 'teamScore', id: t.id, value: v}));
+      break;
+    }
+    case 'teamDel': {
+      const t = view.teams.find(x => x.id === d.id); if (!t) return;
+      if (confirm(`Remove ${t.name}?`)) act({type: 'teamDel', id: t.id});
+      break;
+    }
+    case 'teamAdd': act({type: 'teamAdd'}); break;
+    case 'sort': sortHand = !sortHand; render(); break;
+    case 'show': act({type: 'showHand'}); break;
+  }
+}
+
+/* ============================================================
+   SEAT CHIPS — tap to give that player the turn; host/dealer can drag to reorder
+   ============================================================ */
+let drag = null;
+function canReorder() { return view && (view.you === view.hostId || view.you === view.dealerId); }
+$('#seats').addEventListener('pointerdown', e => {
+  const chip = e.target.closest('.chip'); if (!chip) return;
+  drag = {id: chip.dataset.id, x: e.clientX, y: e.clientY, chip, moved: false, ghost: null, target: null, can: canReorder()};
+  chip.setPointerCapture(e.pointerId);
+});
+$('#seats').addEventListener('pointermove', e => {
+  if (!drag) return;
+  if (!drag.moved) {
+    if (!drag.can || Math.hypot(e.clientX - drag.x, e.clientY - drag.y) < 6) return;
+    drag.moved = true;
+    drag.ghost = drag.chip.cloneNode(true);
+    drag.ghost.classList.add('ghost');
+    document.body.appendChild(drag.ghost);
+    drag.chip.classList.add('dragging');
+  }
+  drag.ghost.style.left = e.clientX + 'px';
+  drag.ghost.style.top = e.clientY + 'px';
+  const under = document.elementFromPoint(e.clientX, e.clientY);
+  const t = under && under.closest('#seats .chip');
+  if (drag.target && drag.target !== t) drag.target.classList.remove('target');
+  drag.target = t && t !== drag.chip ? t : null;
+  if (drag.target) drag.target.classList.add('target');
+});
+function endDrag(e, cancelled) {
+  if (!drag) return;
+  const d = drag; drag = null;
+  if (d.ghost) d.ghost.remove();
+  if (!cancelled) {
+    if (d.moved) {
+      if (d.target) act({type: 'seat', id: d.id, to: view.players.findIndex(p => p.id === d.target.dataset.id)});
+    } else if (view.turnsOn) {
+      act({type: 'setTurn', id: d.id});
+    }
+  }
+  render();
+}
+$('#seats').addEventListener('pointerup', e => endDrag(e, false));
+$('#seats').addEventListener('pointercancel', e => endDrag(e, true));
+
+/* ============================================================
+   RENDER
+   ============================================================ */
+function matColor(p) { return MAT_COLORS[(p.color || 0) % MAT_COLORS.length]; }
+function cardHtml(c, opts = {}) {
+  const cls = 'card' + (opts.sm ? ' sm' : '') + (opts.xs ? ' xs' : '') + (opts.cls || '');
+  const attrs = opts.attrs || '';
+  if (!c) return `<div class="${cls} back" ${attrs}></div>`;
+  const r = c.r === 'JK' ? 'JKR' : c.r;
+  const sym = SYM[c.s] || '?';
+  return `<div class="${cls}${RED.has(c.s) ? ' red' : ''}" ${attrs}><span class="r">${esc(r)}</span><span class="cs">${sym}</span><span class="s">${sym}</span></div>`;
+}
+function tableauHtml(p, mine, sm) {
+  const t = p.table, o = esc(p.id);
+  if (!t.slots.length) return '';
+  const holdingOwn = sel && sel.zone === 'slot' && sel.owner === view.you;
+  let inner = t.slots.map((s, i) => {
+    const attrs = `data-zone="slot" data-owner="${o}" data-slot="${i}"`;
+    const isSel = sel && sel.zone === 'slot' && sel.owner === p.id && +sel.slot === i;
+    const drop = sel && !isSel && !(mine && holdingOwn) ? ' drop' : '';
+    if (!s) return `<div class="slot${sm ? ' sm' : ''}${sel ? ' drop' : ''}" ${attrs}></div>`;
+    const peekCls = (s.mine ? ' peek' : '') + (s.eye ? ' peeking' : '');
+    return cardHtml(s.c, {sm, cls: peekCls + (isSel ? ' selected' : '') + drop, attrs});
+  }).join('');
+  return t.cols
+    ? `<div class="grid" style="grid-template-columns:repeat(${t.cols},auto)">${inner}</div>`
+    : `<div class="cards">${inner}</div>`;
+}
+function headExtras(p) {
+  let h = '';
+  // While holding a card: a "+" target to add it in front of this player (lives in the
+  // header so the layout doesn't shift under your finger).
+  if (sel) h += `<span class="addspot drop" data-zone="slot-add" data-owner="${esc(p.id)}" data-slot="${p.table.slots.length}" title="Put the card in front of this player">+</span>`;
+  if (p.tricks) h += `<span class="trickpile" data-zone="tricks" data-owner="${esc(p.id)}" title="${p.id === view.you ? 'Tap to put your last trick back on the table' : 'Tricks taken'}">${cardHtml(null, {xs: true})}${p.tricks}</span>`;
+  if (view.scoreMode === 'individual') h += `<span class="score" data-act="score" data-owner="${esc(p.id)}" title="Tap to set score">${esc(p.score ?? 0)}</span>`;
+  return h;
+}
+function nameBadges(p) {
+  let b = '';
+  if (p.id === view.dealerId) b += '<span class="badge dealer" title="Dealer">D</span>';
+  if (view.scoreMode === 'teams' && p.teamId) {
+    const t = view.teams.find(x => x.id === p.teamId);
+    if (t) b += `<span class="teambadge" title="${esc(t.name)}" style="${teamStyle(t.id)}">${esc(t.name)}</span>`;
+  }
+  if (!p.connected) b += '<span class="badge">offline</span>';
+  return b;
+}
+function matClasses(p) {
+  return 'mat' + (view.turnsOn && p.id === view.turnId ? ' turn' : '') + (p.connected ? '' : ' offline');
+}
+// Lay-down area: each group is a stack of overlapping face-up cards.
+function meldsHtml(p, sm) {
+  const o = esc(p.id);
+  const groups = (p.melds || []).map((g, gi) => `<div class="group">${g.map((c, i) => {
+    const isSel = sel && sel.zone === 'meld' && sel.owner === p.id && +sel.g === gi && +sel.i === i;
+    const drop = sel && !isSel ? ' drop' : '';
+    return cardHtml(c, {sm, cls: (isSel ? ' selected' : '') + drop, attrs: `data-zone="meld-card" data-owner="${o}" data-g="${gi}" data-i="${i}"`});
+  }).join('')}</div>`).join('');
+  const ph = groups ? '' : `<span class="ph">${p.id === view.you ? 'Lay cards down here' : 'lay-down'}</span>`;
+  return `<div class="melds${sel ? ' drop' : ''}" data-zone="meld" data-owner="${o}" title="Drop here to start a group; drop on a group to add to it">${groups}${ph}</div>`;
+}
+function seatHtml(p) {
+  const o = esc(p.id);
+  const handCards = (p.backs || []).map((b, i) => {
+    const isSel = sel && sel.zone === 'hand' && sel.owner === p.id && +sel.index === i;
+    const cls = (isSel ? ' selected' : '') + (b.mine ? ' peek' : '') + (b.eye ? ' peeking' : '');
+    return cardHtml(b.c, {sm: true, cls, attrs: `data-zone="hand-card" data-owner="${o}" data-index="${i}"`});
+  }).join('');
+  const dropHand = sel && !(sel.zone === 'hand' && sel.owner === p.id) ? ' drop' : '';
+  return `<div class="${matClasses(p)}" style="--mat:${matColor(p)}">
+    <div class="mat-head">${esc(p.name)} ${nameBadges(p)}<span class="grow"></span>${headExtras(p)}</div>
+    <div class="mat-body">
+      <div class="fanzone${dropHand}" data-zone="hand" data-owner="${o}"><div class="fan">${handCards}</div></div>
+      ${tableauHtml(p, false, true)}
+      ${meldsHtml(p, true)}
+    </div>
+  </div>`;
+}
+function chipHtml(p, i) {
+  const cls = 'chip' + (view.turnsOn && p.id === view.turnId ? ' turn' : '') + (p.connected ? '' : ' off');
+  const you = p.id === view.you ? ' (you)' : '';
+  return `<div class="${cls}" data-id="${esc(p.id)}" style="--mat:${matColor(p)}"><i>${i + 1}</i>${esc(p.name)}${you}${p.id === view.dealerId ? '<span class="d">D</span>' : ''}</div>`;
+}
+// A team's colors blend its players' mat colors, left to right.
+function teamStyle(teamId) {
+  const cols = view.players.filter(p => p.teamId === teamId).map(p => `color-mix(in srgb,${matColor(p)} 60%,#15171c)`);
+  if (!cols.length) return '';
+  const bg = cols.length === 1 ? cols[0] : `linear-gradient(90deg,${cols.join(',')})`;
+  return `background:${bg};border-color:#ffffff44`;
+}
+function teamsHtml() {
+  return view.teams.map(t => {
+    const members = view.players.filter(p => p.teamId === t.id).map(p => p.name).join(', ') || 'no players yet';
+    const tricks = t.tricks
+      ? `<span class="trickpile" data-zone="tricks" data-team="${esc(t.id)}" title="Team tricks. A team member can tap to put the last one back.">${cardHtml(null, {xs: true})}${t.tricks}</span>`
+      : '';
+    return `<div class="plaque" title="${esc(members)}" style="${teamStyle(t.id)}">
+      <span class="pname" data-act="teamName" data-id="${esc(t.id)}" title="Tap to rename (${esc(members)})">${esc(t.name)}</span>
+      ${tricks}
+      <span class="pscore" data-act="teamScore" data-id="${esc(t.id)}" title="Tap to set score">${esc(t.score)}</span>
+      <button class="px" data-act="teamDel" data-id="${esc(t.id)}" title="Remove team">×</button>
+    </div>`;
+  }).join('') + '<button class="padd" data-act="teamAdd" title="Add a team">+</button>';
+}
+// Dealer's team assignment row: one dropdown per player.
+let lastAssignSig = '';
+function renderTeamAssign(amDealer) {
+  const box = $('#teamAssign');
+  const on = amDealer && view.scoreMode === 'teams';
+  box.hidden = !on;
+  if (!on) { lastAssignSig = ''; return; }
+  const sig = JSON.stringify([view.teams.map(t => [t.id, t.name]), view.players.map(p => [p.id, p.name, p.teamId])]);
+  if (sig === lastAssignSig) return;           // don't rebuild (and close) a dropdown that's open
+  lastAssignSig = sig;
+  box.innerHTML = '<span class="lbl">Teams:</span>' + view.players.map(p =>
+    `<label class="lbl">${esc(p.name)} <select data-assign="${esc(p.id)}">
+      ${view.teams.map(t => `<option value="${esc(t.id)}"${p.teamId === t.id ? ' selected' : ''}>${esc(t.name)}</option>`).join('')}
+      <option value=""${p.teamId ? '' : ' selected'}>(no team)</option>
+    </select></label>`).join('');
+}
+function sortCards(cards) {
+  const suitOrder = {S: 0, H: 1, C: 2, D: 3, R: 4, B: 5};
+  const rankOrder = r => r === 'JK' ? 99 : RANKS.indexOf(r);
+  return [...cards].sort((a, b) => (suitOrder[a.s] - suitOrder[b.s]) || (rankOrder(a.r) - rankOrder(b.r)));
+}
+function describeSel(me) {
+  switch (sel.zone) {
+    case 'deck': return view.deckTop && view.deckTop.c ? `${fmt(view.deckTop.c)} from the deck` : 'Top card of the deck';
+    case 'discard': return fmt(view.discardTop);
+    case 'center': { const x = view.center[+sel.index]; return x && x.c ? fmt(x.c) : 'Face-down card on the table'; }
+    case 'hand': {
+      if (sel.owner === view.you) { const c = (me.hand || []).find(c => c.id === sel.id); return c ? fmt(c) : 'Card'; }
+      return `A card from ${playerView(sel.owner).name}'s hand`;
+    }
+    case 'slot': {
+      const s = playerView(sel.owner).table.slots[+sel.slot];
+      const where = sel.owner === view.you ? 'in front of you' : `in front of ${playerView(sel.owner).name}`;
+      return s && s.c ? `${fmt(s.c)} ${where}` : `Face-down card ${where}`;
+    }
+    case 'meld': {
+      const g = playerView(sel.owner).melds[+sel.g];
+      return g && g[+sel.i] ? fmt(g[+sel.i]) : 'Card';
+    }
+  }
+  return 'Card';
+}
+// Drop the selection if the card it points at is gone after a state update.
+function selStillValid(me) {
+  switch (sel.zone) {
+    case 'deck': return view.deckCount > 0;
+    case 'discard': return view.discardCount > 0;
+    case 'center': return +sel.index < view.center.length;
+    case 'hand': {
+      const p = playerView(sel.owner); if (!p) return false;
+      return sel.owner === view.you ? (me.hand || []).some(c => c.id === sel.id) : +sel.index < p.handCount;
+    }
+    case 'slot': { const p = playerView(sel.owner); return !!(p && p.table.slots[+sel.slot]); }
+    case 'meld': { const p = playerView(sel.owner), g = p && p.melds[+sel.g]; return !!(g && g[+sel.i]); }
+  }
+  return false;
+}
+
+/* ---------- slide animations ----------
+   Before the DOM is updated we note where each moving card was on this screen;
+   after, we fly a card from there to its new spot. */
+let lastAnimSeq = null, skipMyNextAnim = false;
+const reduceMotion = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+function locEl(l) {
+  const q = s => document.querySelector(s);
+  const o = l.owner != null ? CSS.escape(String(l.owner)) : '';
+  switch (l.zone) {
+    case 'deck': return q('#deckPile');
+    case 'discard': return q('#discardPile');
+    case 'center': return q(`#playArea [data-zone="center-card"][data-index="${l.index}"]`) || q('#playArea');
+    case 'hand': return q(`[data-zone="hand-card"][data-owner="${o}"][data-index="${l.index}"]`) || q(`[data-zone="hand"][data-owner="${o}"]`);
+    case 'slot': return q(`[data-zone="slot"][data-owner="${o}"][data-slot="${l.slot}"]`);
+    case 'meld': return q(`[data-zone="meld-card"][data-owner="${o}"][data-g="${l.g}"][data-i="${l.i}"]`) || q(`[data-zone="meld"][data-owner="${o}"]`);
+    case 'tricks': return l.team != null
+      ? q(`[data-zone="tricks"][data-team="${CSS.escape(String(l.team))}"]`)
+      : q(`[data-zone="tricks"][data-owner="${o}"]`);
+  }
+  return null;
+}
+// The card element at a location (or null if it's just an area), and a rectangle to fly from/to.
+function cardAt(el) {
+  if (!el) return null;
+  if (el.classList.contains('card')) return el;
+  if (el.id === 'deckPile' || el.id === 'discardPile' || el.classList.contains('trickpile')) return el.querySelector('.card');
+  return null;
+}
+// Cards still in flight: their landing spots stay invisible even if the screen is redrawn mid-flight.
+const inflight = new Map();   // location key -> {loc, n}
+function rehideInflight() {
+  for (const {loc} of inflight.values()) { const el = cardAt(locEl(loc)); if (el) el.style.opacity = '0'; }
+}
+function rectAt(el) {
+  if (!el) return null;
+  const c = cardAt(el), r = (c || el).getBoundingClientRect();
+  if (c) return {left: r.left, top: r.top, width: r.width, height: r.height};
+  return {left: r.left + 6, top: r.top + 6, width: 52, height: 74};   // an empty area: aim at its corner
+}
+function prepareAnim() {
+  const a = view.anim;
+  // On your first look at the table, don't replay whatever happened before you arrived.
+  if (lastAnimSeq === null) { lastAnimSeq = a ? a.seq : 0; return null; }
+  if (!a || a.seq === lastAnimSeq) return null;
+  lastAnimSeq = a.seq;
+  let moves = a.moves;
+  if (a.by === view.you && skipMyNextAnim) { skipMyNextAnim = false; moves = moves.slice(1); }   // you dragged that one yourself
+  // Slides stay on even with the device's Reduce Motion setting (they're how you notice other
+  // players' moves); they just run quicker then.
+  if (!document.body.animate || !moves.length) return null;
+  return moves.map(m => ({m, src: rectAt(locEl(m.from))}));
+}
+function runAnim(plan) {
+  if (!plan) return;
+  const duration = reduceMotion ? 300 : 450;
+  const stagger = Math.min(reduceMotion ? 40 : 70, (reduceMotion ? 800 : 1400) / Math.max(1, plan.length));
+  plan.forEach(({m, src}, i) => {
+    const dstEl = locEl(m.to);
+    const dst = rectAt(dstEl);
+    if (!src || !dst) return;
+    if (Math.abs(src.left - dst.left) < 2 && Math.abs(src.top - dst.top) < 2) return;
+    const holder = document.createElement('div');
+    holder.innerHTML = cardHtml(m.c, {sm: dst.width < 40});
+    const fly = holder.firstElementChild;
+    fly.classList.add('flyer');
+    Object.assign(fly.style, {left: dst.left + 'px', top: dst.top + 'px', width: dst.width + 'px', height: dst.height + 'px'});
+    document.body.appendChild(fly);
+    const target = cardAt(dstEl);
+    if (target) target.style.opacity = '0';   // invisible but still tappable while the card flies in
+    const key = JSON.stringify(m.to);
+    inflight.set(key, {loc: m.to, n: (inflight.has(key) ? inflight.get(key).n : 0) + 1});
+    const dx = src.left - dst.left, dy = src.top - dst.top;
+    const anim = fly.animate(
+      [{transform: `translate(${dx}px,${dy}px) scale(${src.width / dst.width},${src.height / dst.height})`}, {transform: 'none'}],
+      {duration, delay: i * stagger, easing: 'cubic-bezier(.2,.7,.3,1)', fill: 'backwards'});
+    let finished = false;
+    const done = () => {
+      if (finished) return;
+      finished = true;
+      fly.remove();
+      const f = inflight.get(key);
+      if (f && --f.n <= 0) inflight.delete(key);
+      if (!inflight.has(key)) { const cur = cardAt(locEl(m.to)); if (cur) cur.style.opacity = ''; }
+    };
+    anim.onfinish = done; anim.oncancel = done;
+    setTimeout(done, duration + i * stagger + 400);   // backup in case the browser never reports the end
+  });
+}
+
+function render() {
+  if (!view) return;
+  const me = myView();
+  if (!me) return;
+  const animPlan = prepareAnim();
+  sweepGhosts();
+  const amHost = view.you === view.hostId, amDealer = view.you === view.dealerId;
+  const hand = me.hand || [];
+  if (sel && !selStillValid(me)) sel = null;
+
+  // Header
+  const title = view.tableName + (view.handNo ? ` – Hand ${view.handNo}` : '');
+  $('#tableTitle').textContent = title;
+  document.title = `${title} · Card Table`;
+  $('#roomCode').textContent = view.room;
+  const tb = $('#trumpBadge');
+  tb.querySelector('span').textContent = view.trump ? SYM[view.trump] : '–';
+  tb.classList.toggle('red', !!view.trump && RED.has(view.trump));
+
+  // Teams
+  $('#teamsRow').hidden = view.scoreMode !== 'teams';
+  if (view.scoreMode === 'teams') $('#teamsRow').innerHTML = teamsHtml();
+
+  // Seats (left alone mid-drag so the dragged chip isn't replaced under the pointer)
+  if (!drag) $('#seats').innerHTML = view.players.map(chipHtml).join('');
+  $('#hostDealer').hidden = !amHost;
+  if (amHost) {
+    $('#dealerSel').innerHTML = view.players.map(p =>
+      `<option value="${esc(p.id)}"${p.id === view.dealerId ? ' selected' : ''}>${esc(p.name)}${p.connected ? '' : ' (offline)'}</option>`
+    ).join('');
+  }
+
+  // Opponents, in seat order starting with the player after you
+  const n = view.players.length, idx = view.players.findIndex(p => p.id === view.you);
+  const others = [];
+  for (let k = 1; k < n; k++) others.push(view.players[(idx + k) % n]);
+  $('#opponents').innerHTML = others.map(seatHtml).join('');
+  $('#opponents').hidden = !others.length;
+
+  // Deck
+  const deckSel = sel && sel.zone === 'deck';
+  const dt = view.deckTop || {};
+  $('#deckPile').innerHTML = view.deckCount
+    ? cardHtml(dt.c || null, {cls: (deckSel ? ' selected' : '') + (sel && !deckSel ? ' drop' : '')
+        + (dt.mine && !dt.up ? ' peek' : '') + (dt.eye ? ' peeking' : '')})
+    : `<div class="slot${sel ? ' drop' : ''}">Empty</div>`;
+  $('#deckLabel').textContent = `Deck ${view.deckCount}`;
+
+  // Discard
+  const discSel = sel && sel.zone === 'discard';
+  $('#discardPile').innerHTML = view.discardTop
+    ? cardHtml(view.discardTop, {cls: (discSel ? ' selected' : '') + (sel && !discSel ? ' drop' : '')})
+    : `<div class="slot${sel ? ' drop' : ''}">Discard</div>`;
+  $('#discardLabel').textContent = `Discard ${view.discardCount}`;
+
+  // Center play area
+  $('#playArea').classList.toggle('drop', !!sel && sel.zone !== 'center');
+  // Table cards overlap; a stripe in the player's mat color shows who played each one.
+  $('#playArea').innerHTML = view.center.length
+    ? `<div class="cstack">${view.center.map((x, i) => {
+        const isSel = sel && sel.zone === 'center' && +sel.index === i;
+        const stripe = x.color != null ? ` style="--by:${MAT_COLORS[x.color % MAT_COLORS.length]}"` : '';
+        return cardHtml(x.c, {cls: (isSel ? ' selected' : '') + (x.color != null ? ' byc' : '') + (x.mine ? ' peek' : '') + (x.eye ? ' peeking' : ''),
+          attrs: `data-zone="center-card" data-index="${i}" title="${x.by ? 'Played by ' + esc(x.by) : 'Dealt'}"${stripe}`});
+      }).join('')}</div>`
+    : (others.length ? '' : '<span id="playHint">Waiting for players. Tap the room code to copy an invite link.</span>');
+
+  // Hands turned face up with "Show hand" are laid out on the table (usually the end of a hand).
+  const showing = view.players.filter(p => p.shown && (p.id === view.you ? (me.hand || []).length : p.handCount));
+  $('#shownArea').hidden = !showing.length;
+  $('#shownArea').innerHTML = showing.map(p => {
+    const cards = p.id === view.you ? (sortHand ? sortCards(me.hand) : me.hand) : p.backs.map(b => b.c);
+    return `<div class="showgroup" style="--mat:${matColor(p)}"><div class="who">${esc(p.name)}${p.id === view.you ? ' (you)' : ''}</div>
+      <div class="cards">${cards.map(c => cardHtml(c)).join('')}</div></div>`;
+  }).join('');
+
+  // Take trick appears once everyone in the hand has a card on the table. Someone who
+  // has played, or still holds cards, is in the hand; an extra window with no cards doesn't block it.
+  const playedBy = new Set(view.center.map(x => x.byId));
+  const inHand = p => playedBy.has(p.id) || (p.id === view.you ? hand.length : p.handCount) > 0;
+  const players = view.players.filter(p => p.connected && inHand(p));
+  const everyoneIn = playedBy.size > 0 && players.length > 0 && players.every(p => playedBy.has(p.id));
+  $('#takeTrickBtn').hidden = !everyoneIn;
+
+  // Me
+  const meEl = $('#me');
+  meEl.className = matClasses(me);
+  meEl.style.setProperty('--mat', matColor(me));
+  const myTurn = view.turnsOn && view.turnId === view.you && view.players.length > 1;
+  $('#doneBtn').hidden = !view.turnsOn || view.players.length < 2;
+  $('#doneBtn').className = myTurn ? '' : 'secondary';
+  $('#meHead').innerHTML = `${esc(me.name)} (you) ${nameBadges(me)}`
+    + (myTurn ? ' <span class="yourturn">YOUR TURN</span>' : '')
+    + (hand.length > 1 ? ` <button class="secondary small" data-act="sort">${sortHand ? 'Unsort' : 'Sort'}</button>` : '')
+    + (hand.length || me.shown ? ` <button class="${me.shown ? '' : 'secondary '}small" data-act="show" title="Turn your hand face up for everyone">${me.shown ? 'Hide hand' : 'Show hand'}</button>` : '')
+    + `<span class="grow"></span>${headExtras(me)}`;
+  $('#myTable').innerHTML = tableauHtml(me, true, false);
+  $('#myMelds').innerHTML = meldsHtml(me, false);
+  const shown = sortHand ? sortCards(hand) : hand;
+  $('#myHand').dataset.owner = view.you;
+  const watched = new Set(me.handEye || []);
+  $('#myHand').innerHTML = shown.map(c => cardHtml(c, {
+      cls: (sel && sel.zone === 'hand' && sel.owner === view.you && sel.id === c.id ? ' selected' : '')
+        + (watched.has(c.id) ? ' peeking' : ''),
+      attrs: `data-zone="hand-card" data-owner="${esc(view.you)}" data-id="${esc(c.id)}" data-index="${hand.indexOf(c)}"`
+    })).join('');
+  $('#myHand').classList.toggle('drop', !!sel && !(sel.zone === 'hand' && sel.owner === view.you));
+
+  // Floating hint only while something is selected
+  $('#hint').hidden = !sel || !!cdrag;
+  if (sel) $('#hint').textContent = `${describeSel(me)} selected. Tap where it goes, or tap it again to put it back.`;
+
+  // Dealer: one "Deal" button that opens the options panel
+  if (!amDealer) dealOpen = false;
+  $('#dealToggle').hidden = !amDealer;
+  $('#dealToggle').classList.toggle('open', dealOpen);
+  $('#dealToggle').textContent = dealOpen ? 'Deal ▴' : 'Deal ▾';
+  $('#dealerPanel').hidden = !(amDealer && dealOpen);
+  // "Pass deal to…" lists everyone else in seat order, starting with the next player.
+  const passTo = others.filter(p => p.id !== view.you);
+  const nextId = (passTo.find(p => p.connected) || {}).id;
+  $('#passDealSel').innerHTML = '<option value="">Pass deal to…</option>' + passTo.map(p =>
+    `<option value="${esc(p.id)}">${esc(p.name)}${p.id === nextId ? ' (next)' : ''}${p.connected ? '' : ' (offline)'}</option>`).join('');
+  $('#passDealSel').disabled = !passTo.length;
+  const locked = view.cardsOut > 0;
+  $('#decksSel').value = String(view.decks);
+  $('#jokersChk').checked = view.jokers;
+  $('#decksSel').disabled = locked;
+  $('#jokersChk').disabled = locked;
+  $('#applyDeckBtn').disabled = locked;
+  $('#applyDeckBtn').title = locked ? 'Collect all cards first' : '';
+  $('#teamsChk').checked = view.scoreMode === 'teams';
+  $('#turnsChk').checked = !!view.turnsOn;
+  $('#keepFaceChk').checked = !!view.keepFace;
+  renderTeamAssign(amDealer);
+  $('#dealBtn').disabled = view.deckCount === 0;
+  $('#dealAllBtn').disabled = view.deckCount === 0;
+  $('#shuffleBtn').disabled = view.deckCount < 2;
+  $('#reshuffleDiscardBtn').disabled = view.discardCount < 2;
+
+  // Action log, newest first and highlighted
+  if (view.logLen !== lastLogLen) {
+    $('#log').innerHTML = view.log.slice().reverse()
+      .map((t, i) => `<div${i === 0 ? ' class="latest"' : ''}>${esc(t)}</div>`).join('');
+    $('#log').scrollTop = 0;
+    lastLogLen = view.logLen;
+  }
+
+  renderChat();
+  rehideInflight();
+  runAnim(animPlan);
+  placeDealPanel();
+}
+// Keep the Deal panel just under its button, wherever the header wrapped to.
+function placeDealPanel() {
+  if ($('#dealerPanel').hidden) return;
+  const r = $('#dealToggle').getBoundingClientRect();
+  $('#dealerPanel').style.top = Math.max(8, r.bottom + 6) + 'px';
+}
+window.addEventListener('resize', () => { if (view) placeDealPanel(); });
+
+function renderChat() {
+  const msgs = view.chat || [];
+  const lastSeq = msgs.length ? msgs[msgs.length - 1].seq : 0;
+  if (lastSeq === lastChatSeq) return;
+  const box = $('#chatMsgs');
+  const nearBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 30;
+  box.innerHTML = msgs.length
+    ? msgs.map(m => `<div class="m${m.by === view.you ? ' mine' : ''}"><b>${esc(m.name)}:</b> ${esc(m.text)}</div>`).join('')
+    : '<div class="none">Chat with the table here.</div>';
+  if (nearBottom || lastChatSeq === -1 || (msgs.length && msgs[msgs.length - 1].by === view.you)) box.scrollTop = box.scrollHeight;
+  lastChatSeq = lastSeq;
+}
+
+/* ============================================================
+   WIRING
+   ============================================================ */
+function updateDealFields() {
+  const to = $('#dealTo').value;
+  $$('.tableOnly').forEach(el => el.hidden = to === 'hand');
+  $$('.gridOnly').forEach(el => el.hidden = to !== 'grid');
+  $$('.countOnly').forEach(el => el.hidden = to === 'grid');
+  $('#dealAllBtn').hidden = to === 'grid' || to === 'table';
+  $('#dealCount').title = to === 'table' ? 'Cards in total' : 'Cards to each player';
+  const c = clampInt($('#dealCols').value, 1, 8, 2), r = clampInt($('#dealRows').value, 1, 8, 2);
+  $('#gridCalc').textContent = `= ${c * r} each`;
+}
+['#dealTo', '#dealCols', '#dealRows'].forEach(s => $(s).addEventListener('input', updateDealFields));
+updateDealFields();
+
+function getName() {
+  const n = $('#name').value.trim().slice(0, 20);
+  if (!n) { lobbyMsg('Enter your name first'); $('#name').focus(); return null; }
+  try { localStorage.setItem('ct-name', n); } catch (e) {}
+  myName = n; return n;
+}
+async function copyLink() {
+  const url = location.href.split('#')[0] + '#' + joinCode;
+  try { await navigator.clipboard.writeText(url); toast('Invite link copied'); }
+  catch (e) { prompt('Copy this link:', url); }
+}
+
+/* ---------- full screen ----------
+   Browsers only allow full screen from a tap, so phones and tablets switch to it when you
+   press Create or Join; the ⛶ button toggles it. iPhones don't let web pages go full screen,
+   but adding the game to the Home Screen opens it without the browser bars. */
+const isTouch = !!(window.matchMedia && matchMedia('(pointer: coarse)').matches);
+const docEl = document.documentElement;
+const canFullscreen = !!(docEl.requestFullscreen || docEl.webkitRequestFullscreen);
+const isInstalled = !!((window.matchMedia && matchMedia('(display-mode: standalone), (display-mode: fullscreen)').matches) || navigator.standalone);
+const isFullscreen = () => !!(document.fullscreenElement || document.webkitFullscreenElement);
+function goFullscreen() {
+  if (isInstalled || !canFullscreen || isFullscreen()) return;
+  try {
+    const p = (docEl.requestFullscreen || docEl.webkitRequestFullscreen).call(docEl, {navigationUI: 'hide'});
+    if (p && p.catch) p.catch(() => {});
+  } catch (e) {}
+}
+function toggleFullscreen() {
+  if (isFullscreen()) (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+  else goFullscreen();
+}
+$('#fsBtn').hidden = isInstalled || !canFullscreen;
+$('#fsBtn').onclick = toggleFullscreen;
+const onFsChange = () => { $('#fsBtn').title = isFullscreen() ? 'Exit full screen' : 'Full screen'; };
+document.addEventListener('fullscreenchange', onFsChange);
+document.addEventListener('webkitfullscreenchange', onFsChange);
+if (isTouch && !isInstalled && !canFullscreen) {
+  $('#installTip').hidden = false;
+  $('#installTip').textContent = 'For full screen on iPhone: tap the Share button, then “Add to Home Screen”, and open Card Table from there.';
+}
+
+$('#createBtn').onclick = () => {
+  const n = getName(); if (!n) return;
+  if (isTouch) goFullscreen();
+  const t = $('#tableName').value.trim().slice(0, 40);
+  try { localStorage.setItem('ct-table', t); } catch (e) {}
+  createRoom(n, t);
+};
+$('#joinBtn').onclick = () => {
+  const n = getName(); if (!n) return;
+  const c = $('#code').value.trim().toUpperCase();
+  if (!c) { lobbyMsg('Enter a room code or pick a table'); return; }
+  if (isTouch) goFullscreen();
+  joinRoom(n, c);
+};
+$('#tablesList').addEventListener('click', e => {
+  const b = e.target.closest('.joinrow'); if (!b) return;
+  const n = getName(); if (!n) return;
+  if (isTouch) goFullscreen();
+  joinRoom(n, b.dataset.code);
+});
+$('#refreshTablesBtn').onclick = refreshTables;
+$('#code').addEventListener('keydown', e => { if (e.key === 'Enter') $('#joinBtn').click(); });
+$('#tableName').addEventListener('keydown', e => { if (e.key === 'Enter') $('#createBtn').click(); });
+$('#reconnectBtn').onclick = () => joinRoom(myName, joinCode);
+
+// One listener for every tappable thing in the game
+$('#game').addEventListener('click', e => {
+  if (suppressClick || e.target.closest('#seats')) return;   // after a drag; seat chips use pointer events
+  const a = e.target.closest('[data-act]');
+  if (a) { flushPendingTap(); onAct(a.dataset.act, a.dataset); return; }
+  const z = e.target.closest('[data-zone]');
+  if (z) handleTap(z.dataset.zone, {...z.dataset});
+});
+// A long-press on a card shouldn't pop up the browser's menu.
+$('#game').addEventListener('contextmenu', e => { if (e.target.closest('.card, [data-zone]')) e.preventDefault(); });
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    if (!$('#editDlg').hidden) closeEdit();
+    else if (dealOpen) { dealOpen = false; render(); }
+    else if (sel) { sel = null; render(); }
+  }
+});
+
+$('#takeTrickBtn').onclick = () => act({type: 'takeTrick'});
+$('#doneBtn').onclick = () => act({type: 'done'});
+$('#dealerSel').onchange = e => act({type: 'setDealer', playerId: e.target.value});
+$('#randomDealerBtn').onclick = () => act({type: 'randomDealer'});
+
+$('#applyDeckBtn').onclick = () => act({type: 'setupDeck', decks: parseInt($('#decksSel').value, 10), jokers: $('#jokersChk').checked});
+$('#teamsChk').onchange = e => {
+  act({type: 'scoreMode', teams: e.target.checked});
+  if (e.target.checked) toast('Players were put on teams by seat (1st & 3rd, 2nd & 4th). Change them below.');
+};
+$('#turnsChk').onchange = e => act({type: 'turnsOn', on: e.target.checked});
+$('#keepFaceChk').onchange = e => act({type: 'keepFace', on: e.target.checked});
+$('#teamAssign').addEventListener('change', e => {
+  const s = e.target.closest('select[data-assign]');
+  if (s) act({type: 'setTeam', playerId: s.dataset.assign, teamId: s.value});
+});
+$('#resetScoresBtn').onclick = () => { if (confirm('Set every score back to 0?')) act({type: 'resetScores'}); };
+const dealParams = () => ({
+  type: 'deal',
+  to: $('#dealTo').value,
+  faceUp: $('#dealFace').value === 'up',
+  cols: $('#dealCols').value,
+  rows: $('#dealRows').value,
+  count: $('#dealCount').value
+});
+// Dealing closes the panel; the Deal ▾ button toggles it.
+$('#dealBtn').onclick = () => { dealOpen = false; act(dealParams()); render(); };
+$('#dealAllBtn').onclick = () => { dealOpen = false; act({...dealParams(), all: true}); render(); };
+$('#dealToggle').onclick = () => { dealOpen = !dealOpen; render(); };
+$('#dealCloseBtn').onclick = () => { dealOpen = false; render(); };
+$('#shuffleBtn').onclick = () => act({type: 'shuffle'});
+$('#reshuffleDiscardBtn').onclick = () => act({type: 'reshuffleDiscard'});
+$('#collectBtn').onclick = () => { if (confirm('Collect every card from every player and reshuffle?')) act({type: 'collect'}); };
+$('#passDealSel').onchange = e => {
+  const to = e.target.value; if (!to) return;
+  dealOpen = false;
+  act({type: 'passDeal', to});
+};
+
+// Edit dialog
+$('#editForm').addEventListener('submit', e => {
+  e.preventDefault();
+  const cb = editCb, v = $('#editInput').value;
+  closeEdit();
+  if (cb) cb(v);
+});
+$('#editCancel').onclick = closeEdit;
+$('#editDlg').addEventListener('click', e => { if (e.target.id === 'editDlg') closeEdit(); });
+
+// Chat
+$('#chatForm').addEventListener('submit', e => {
+  e.preventDefault();
+  const t = $('#chatInput').value.trim();
+  if (!t) return;
+  act({type: 'chat', text: t});
+  $('#chatInput').value = '';
+});
+$('#chatToggle').onclick = () => {
+  const open = $('#chatDock').classList.toggle('open');
+  $('#chatToggle').textContent = open ? '▾' : '▴';
+  $('#chatToggle').title = open ? 'Show less chat' : 'Show more chat';
+  const box = $('#chatMsgs'); box.scrollTop = box.scrollHeight;
+};
+
+// If the host closes the tab, the game ends for everyone — warn first.
+window.addEventListener('beforeunload', e => { if (isHost && inGame) { e.preventDefault(); e.returnValue = ''; } });
+
+/* ---------- startup ---------- */
+try {
+  $('#name').value = localStorage.getItem('ct-name') || '';
+  $('#tableName').value = localStorage.getItem('ct-table') || '';
+} catch (e) {}
+// An invite link (or a refresh after playing) carries a room code in the address. Don't force it
+// into a Join box (the table may be gone); highlight it in the open-tables list if it's there,
+// and tuck it into "Have a room code?" in case the list can't be reached.
+const hashCode = location.hash.replace('#', '').trim().toUpperCase().slice(0, 5);
+if (hashCode) { invitedCode = hashCode; $('#code').value = hashCode; }
+try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {}
+if (typeof Peer === 'undefined') {
+  setLobbyBusy(true);
+  lobbyMsg('Could not load the networking library. Check your connection and reload.');
+} else {
+  startBrowse();
+}
+</script>
+</body>
+</html>
