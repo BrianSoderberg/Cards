@@ -1,0 +1,90 @@
+{
+  "name": "Cambio",
+  "decks": 1,
+  "jokers": false,
+  "turnsOn": true,
+  "keepFace": true,
+  "scoreMode": "individual",
+  "dealSteps": [
+    {
+      "name": "Deal",
+      "collect": true,
+      "all": false,
+      "flip": true,
+      "grow": 0,
+      "to": "grid",
+      "faceUp": false,
+      "cols": 2,
+      "rows": 2,
+      "count": 5
+    }
+  ],
+  "show": {
+    "scoring": true,
+    "trump": false,
+    "table": false,
+    "piles": true,
+    "laydown": false
+  },
+  "maxPlayers": 8,
+  "exactPlayers": false,
+  "callWord": "Cambio!",
+  "howTo": "Get the lowest total in your 4 cards. You only get to look at them now and then.\n\n# Setup\n- Each player gets a 2×2 grid face down; one card starts the discard pile.\n- At the start, peek at your two nearest cards (tap a card, then Peek), then stop peeking.\n\n# Your turn\n- Draw from the deck or take the top discard.\n- Swap it with one of your grid cards (that card goes to the discard), or discard it.\n- Power cards, when discarded from the deck: 7 or 8 peek at one of your cards; 9 or 10 peek at someone else's; J or Q swap any two cards without looking; black K look at any card, then you may swap it.\n\n# Matching\n- When a card hits the discard, anyone may slap a card of the same rank from their own grid onto it. Wrong guess? Take a penalty card: drop a deck card on your mat.\n\n# Ending\n- On your turn you can press Cambio! instead of playing. Everyone else gets one more turn, then the dealer presses End Round.\n- Scores: A = 1, 2 to 10 face value, J 11, Q 12, K 13, red K = -1, Joker 0. Lowest total after 5 rounds wins.",
+  "wild": {
+    "ranks": [],
+    "dealt": false,
+    "value": 0
+  },
+  "scoring": {
+    "mode": "points",
+    "perTrick": 1,
+    "perRound": 1,
+    "winBonus": 0,
+    "decideBy": "tricks",
+    "roundEnd": {
+      "type": "none",
+      "tricks": 7
+    },
+    "values": {
+      "2": 2,
+      "3": 3,
+      "4": 4,
+      "5": 5,
+      "6": 6,
+      "7": 7,
+      "8": 8,
+      "9": 9,
+      "10": 10,
+      "A": 1,
+      "J": 11,
+      "Q": 12,
+      "K": 13,
+      "JK": 0
+    },
+    "specials": [
+      {
+        "rank": "K",
+        "suit": "H",
+        "value": -1
+      },
+      {
+        "rank": "K",
+        "suit": "D",
+        "value": -1
+      }
+    ],
+    "zones": {
+      "hand": "off",
+      "front": "add",
+      "laydown": "off",
+      "tricks": "off"
+    },
+    "cancelMatches": false,
+    "lowWins": true,
+    "gameEnd": {
+      "type": "rounds",
+      "target": 7,
+      "rounds": 5
+    }
+  }
+}
