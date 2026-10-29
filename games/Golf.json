@@ -1,0 +1,79 @@
+{
+  "name": "Golf",
+  "decks": 1,
+  "jokers": false,
+  "turnsOn": true,
+  "keepFace": false,
+  "scoreMode": "individual",
+  "dealSteps": [
+    {
+      "name": "Deal",
+      "collect": true,
+      "all": false,
+      "flip": true,
+      "grow": 0,
+      "to": "grid",
+      "faceUp": false,
+      "cols": 2,
+      "rows": 2,
+      "count": 5
+    }
+  ],
+  "show": {
+    "scoring": true,
+    "trump": false,
+    "table": false,
+    "piles": true,
+    "laydown": false
+  },
+  "maxPlayers": 8,
+  "exactPlayers": false,
+  "callWord": "",
+  "howTo": "Get the lowest score over 9 rounds.\n\n# Setup\n- Each player gets a 2×2 grid face down; one card starts the discard pile.\n- At the start, peek at two of your cards (tap a card, then Peek).\n\n# Your turn\n- Draw from the deck or take the top discard.\n- Swap it with any card in your grid (the new card lands face up; the old card goes to the discard), or discard it.\n- To turn one of your face-down cards up, tap it, then Flip.\n\n# Ending a round\n- The round ends when every player's cards are face up. The dealer then gets a \"Round looks over\" prompt: tap Score it (or End Round).\n\n# Scoring\n- A = 1, 2 to 10 face value, 5 = -5, J and Q = 10, K = 0.\n- Two or more cards of the same rank anywhere in your grid all score 0.\n- Lowest total after 9 rounds wins.",
+  "wild": {
+    "ranks": [],
+    "dealt": false,
+    "value": 0
+  },
+  "scoring": {
+    "mode": "points",
+    "perTrick": 1,
+    "perRound": 1,
+    "winBonus": 0,
+    "decideBy": "tricks",
+    "roundEnd": {
+      "type": "gridUp",
+      "tricks": 7
+    },
+    "values": {
+      "2": 2,
+      "3": 3,
+      "4": 4,
+      "5": -5,
+      "6": 6,
+      "7": 7,
+      "8": 8,
+      "9": 9,
+      "10": 10,
+      "A": 1,
+      "J": 10,
+      "Q": 10,
+      "K": 0,
+      "JK": 0
+    },
+    "specials": [],
+    "zones": {
+      "hand": "off",
+      "front": "add",
+      "laydown": "off",
+      "tricks": "off"
+    },
+    "cancelMatches": true,
+    "lowWins": true,
+    "gameEnd": {
+      "type": "rounds",
+      "target": 7,
+      "rounds": 9
+    }
+  }
+}
