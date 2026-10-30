@@ -1,0 +1,96 @@
+{
+  "name": "Hokm",
+  "decks": 1,
+  "jokers": false,
+  "turnsOn": true,
+  "keepFace": false,
+  "starter": "keep",
+  "scoreMode": "teams",
+  "dealSteps": [
+    {
+      "name": "First 5",
+      "collect": true,
+      "all": false,
+      "flip": false,
+      "grow": 0,
+      "to": "hand",
+      "faceUp": false,
+      "cols": 2,
+      "rows": 2,
+      "count": 5
+    },
+    {
+      "name": "Rest",
+      "collect": false,
+      "all": true,
+      "flip": false,
+      "grow": 0,
+      "to": "hand",
+      "faceUp": false,
+      "cols": 2,
+      "rows": 2,
+      "count": 5
+    }
+  ],
+  "show": {
+    "scoring": true,
+    "trump": true,
+    "table": true,
+    "piles": false,
+    "laydown": false
+  },
+  "maxPlayers": 4,
+  "exactPlayers": true,
+  "callWord": "",
+  "howTo": "Partners sit across from each other. First team to win 7 tricks takes the round; first team to 7 rounds wins.\n\n# Setup\n- 4 players in 2 teams. Deal 5 cards each first.\n- The Hakem (the dealer here) looks at their 5 cards and picks trump: tap the Trump selector.\n- Then deal the rest, 13 cards each.\n\n# Play\n- The Hakem leads the first trick. Follow suit if you can; otherwise play any card, including trump.\n- Highest trump wins the trick, otherwise the highest card of the suit led. The winner taps Take trick (it goes to their team) and leads next.\n\n# Scoring\n- The first team to take 7 tricks wins the round and scores 1.\n- If the Hakem's team wins the round, the same Hakem goes again. If not, the Hakem passes to the next player round the table.\n- First team to 7 points wins the game.\n\n# Robots\n- Short of 4? Games → + 🤖 Robot adds robot players; partners sit across. The dealer is always a person.\n- If the Hakem (who starts the round) is a robot, it picks trump from its first 5 cards and says so in chat. Then deal the rest. A robot that wins a trick takes it.",
+  "betting": {
+    "mode": "off",
+    "start": 100
+  },
+  "wild": {
+    "ranks": [],
+    "dealt": false,
+    "value": 0
+  },
+  "scoring": {
+    "mode": "roundwin",
+    "perTrick": 1,
+    "perRound": 1,
+    "winBonus": 0,
+    "decideBy": "tricks",
+    "roundEnd": {
+      "type": "tricks",
+      "tricks": 7
+    },
+    "values": {
+      "2": 2,
+      "3": 3,
+      "4": 4,
+      "5": 5,
+      "6": 6,
+      "7": 7,
+      "8": 8,
+      "9": 9,
+      "10": 10,
+      "A": 1,
+      "J": 10,
+      "Q": 10,
+      "K": 10,
+      "JK": 0
+    },
+    "specials": [],
+    "zones": {
+      "hand": "add",
+      "front": "add",
+      "laydown": "add",
+      "tricks": "add"
+    },
+    "cancelMatches": false,
+    "lowWins": false,
+    "gameEnd": {
+      "type": "reach",
+      "target": 7,
+      "rounds": 9
+    }
+  }
+}

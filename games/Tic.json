@@ -1,0 +1,86 @@
+{
+  "name": "Tic",
+  "decks": 2,
+  "jokers": true,
+  "turnsOn": true,
+  "keepFace": false,
+  "starter": "next",
+  "scoreMode": "individual",
+  "dealSteps": [
+    {
+      "name": "Deal",
+      "collect": true,
+      "all": false,
+      "flip": true,
+      "grow": 1,
+      "to": "hand",
+      "faceUp": false,
+      "cols": 2,
+      "rows": 2,
+      "count": 3
+    }
+  ],
+  "show": {
+    "scoring": true,
+    "trump": false,
+    "table": false,
+    "piles": true,
+    "laydown": true
+  },
+  "maxPlayers": 8,
+  "exactPlayers": false,
+  "callWord": "Tic!",
+  "howTo": "Make sets and runs with ever-bigger hands. Wild cards change every round.\n\n# Setup\n- Round 1 deals 3 cards each, then 4, 5, ... One card starts the discard pile.\n- Played with 2 decks and the jokers.\n- Jokers are always wild. So is the rank matching the number of cards dealt (3s in round 1, then 4s, and so on). Wild cards show a W badge.\n\n# Your turn\n- Draw from the deck or take the top discard, then discard one.\n- Build sets (3+ of a rank) and runs (3+ in a row, same suit); wilds fill any gap. Lay them down in your lay-down area.\n\n# Going out\n- When all your cards fit into sets and runs, lay them down and press Tic!. Everyone else gets one more turn, then the dealer presses End Round.\n\n# Scoring\n- Cards left in your hand count against you (wilds count 0). The round winner gets -15.\n- Lowest total after 8 rounds wins.",
+  "betting": {
+    "mode": "off",
+    "start": 100
+  },
+  "wild": {
+    "ranks": [
+      "JK"
+    ],
+    "dealt": true,
+    "value": 0
+  },
+  "scoring": {
+    "mode": "points",
+    "perTrick": 1,
+    "perRound": 1,
+    "winBonus": -15,
+    "decideBy": "tricks",
+    "roundEnd": {
+      "type": "none",
+      "tricks": 7
+    },
+    "values": {
+      "2": 2,
+      "3": 3,
+      "4": 4,
+      "5": 5,
+      "6": 6,
+      "7": 7,
+      "8": 8,
+      "9": 9,
+      "10": 10,
+      "A": 1,
+      "J": 10,
+      "Q": 10,
+      "K": 10,
+      "JK": 0
+    },
+    "specials": [],
+    "zones": {
+      "hand": "add",
+      "front": "off",
+      "laydown": "off",
+      "tricks": "off"
+    },
+    "cancelMatches": false,
+    "lowWins": true,
+    "gameEnd": {
+      "type": "rounds",
+      "target": 7,
+      "rounds": 8
+    }
+  }
+}
