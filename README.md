@@ -1,1 +1,1 @@
-This is a fun playing cards game.
+This is Baraha, a fun playing cards game.
